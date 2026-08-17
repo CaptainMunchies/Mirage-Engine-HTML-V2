@@ -192,3 +192,4 @@ Reference images are role-labelled in the prompt (**FACE** authoritative for ide
 ## Cache busting
 
 After updates, hard refresh (`Ctrl+F5`) or bump `?v=` in `index.html` script tags.
+test sync
