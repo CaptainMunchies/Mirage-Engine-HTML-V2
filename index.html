@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mirage Engine v2 — Standalone</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/app.css?v=199">
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="brand">
+            <h1>MIRAGE ENGINE <span style="color:var(--accent);font-size:0.75rem;">v2</span></h1>
+            <p>Standalone · Google AI · Trigger-Lock Edition</p>
+        </div>
+        <div class="header-actions">
+            <span id="apiKeyBadge" class="api-badge">API Key: Required</span>
+            <span id="kieCreditsBadge" class="credits-badge" hidden></span>
+            <span id="engineStatus" class="status-badge" data-variant="idle">STANDBY</span>
+            <button type="button" class="btn btn-ghost" id="btnReturnSimulation" hidden>Simulation</button>
+            <button type="button" class="btn btn-ghost" id="btnOpenCharacters">Characters</button>
+            <button type="button" class="btn btn-ghost" id="btnOpenConfig">Settings</button>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <ol class="stepper">
+                <li data-step="0"><span class="step-num">0</span> Welcome</li>
+                <li data-step="1"><span class="step-num">1</span> Media Upload</li>
+                <li data-step="2"><span class="step-num">2</span> Face Lock</li>
+                <li data-step="3"><span class="step-num">3</span> Profile</li>
+                <li data-step="4"><span class="step-num">4</span> Protocol</li>
+                <li data-step="5"><span class="step-num">5</span> Standby</li>
+                <li data-step="6"><span class="step-num">6</span> Simulation</li>
+            </ol>
+        </aside>
+
+        <main class="main">
+            <div id="reviewModeBanner" class="review-mode-banner" hidden>
+                <span>Simulation active — you're reviewing setup. Chat and metrics are preserved.</span>
+                <button type="button" class="btn btn-sm" id="btnReviewReturnSim">Return to chat</button>
+            </div>
+
+            <!-- STEP 0: Welcome -->
+            <section class="panel" data-panel="step-0">
+                <h2>Welcome to the Social Ecosystem</h2>
+                <p class="lead">A hyper-immersive digital relationship simulator powered by your Google AI API key.</p>
+
+                <div class="card welcome-flow-card">
+                    <h3>Quick start</h3>
+                    <ol class="welcome-flow-list">
+                        <li><strong>New character</strong> — Begin Setup — media, face, profile, protocol — Launch</li>
+                        <li><strong>Saved character</strong> — load below — choose <em>New simulation</em> or <em>Continue chat</em></li>
+                        <li><strong>During sim</strong> — sidebar steps are unlocked for review; step 6 or header <em>Simulation</em> returns to chat</li>
+                    </ol>
+                </div>
+
+                <div class="card">
+                    <h3>The Experience</h3>
+                    <div class="feature-grid">
+                        <div class="feature"><strong>Instagram Stories</strong>Public updates — reply to slide into DMs.</div>
+                        <div class="feature"><strong>Private DMs</strong>Instagram-style photo responses with overlays.</div>
+                        <div class="feature"><strong>Psychological Depth</strong>Moods, memory, and agency from your media.</div>
+                        <div class="feature"><strong>Visual Fidelity</strong>Every pixel traced from your references.</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Before You Begin</h3>
+                    <ul>
+                        <li>Get a <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio API key</a></li>
+                        <li>Open Settings and save your key + model preferences</li>
+                        <li>Prepare reference photos and short video clips (optional)</li>
+                    </ul>
+                </div>
+
+                <div id="welcomeCharactersCard" class="card" hidden>
+                    <h3>Saved characters</h3>
+                    <p class="card-hint">Pick up where you left off — loads profile, EDF, and master face.</p>
+                    <div id="welcomeCharactersList" class="character-quick-list"></div>
+                    <p style="margin-top:0.75rem;">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnOpenCharactersWelcome">Manage all characters…</button>
+                    </p>
+                </div>
+
+                <div class="arch-note">
+                    Architecture: The master Mirage system prompt is injected into <strong>both</strong> the thinking model (narrative) and the image model (visuals) on every call.
+                </div>
+
+                <p style="margin-top:1.25rem;">
+                    <button type="button" class="btn btn-primary" id="btnBeginSetup">Begin Setup →</button>
+                </p>
+            </section>
+
+            <!-- STEP 1: Media ingest + forensic scrape -->
+            <section class="panel panel-wide" data-panel="step-1" hidden>
+                <h2>Media Ingestion</h2>
+                <p class="lead">Upload reference photos and short video clips. The thinking model builds your Entity Definition File (EDF).</p>
+
+                <div class="card">
+                    <h3>Media constraints</h3>
+                    <ul>
+                        <li><strong>Videos:</strong> max 3 files — 30 seconds each — 25 MB each (forensic only — not kept as image refs)</li>
+                        <li><strong>Photos:</strong> max 20 — 80 MB total pool — wardrobe / face / environment refs (saved with the character)</li>
+                        <li>Formats: JPG, PNG, WEBP, MP4, WEBM</li>
+                    </ul>
+                    <p class="constraint-badges">
+                        <span id="photoCountBadge" class="constraint-badge">0/20 photos</span>
+                        <span id="photoPoolBadge" class="constraint-badge">0 KB / 80.0 MB</span>
+                        <span id="videoCountBadge" class="constraint-badge">0/3 videos</span>
+                    </p>
+                </div>
+
+                <div id="mediaDropzone" class="media-dropzone" tabindex="0" role="button" aria-label="Upload media">
+                    <div class="dropzone-inner">
+                        <span class="dropzone-icon">+</span>
+                        <p><strong>Drag & drop</strong> or click to add media</p>
+                        <p class="dropzone-hint">Photos + short video clips for linguistic & visual indexing</p>
+                    </div>
+                    <input type="file" id="mediaInput" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" hidden>
+                </div>
+
+                <div id="uploadedMediaContainer" class="card" hidden>
+                    <h3>Uploaded <span id="mediaCount">0</span> files</h3>
+                    <div id="mediaGrid" class="media-grid"></div>
+                </div>
+
+                <p style="margin-top:1rem;">
+                    <button type="button" class="btn btn-primary btn-block" id="btnIngestMedia" disabled>
+                        Run Forensic Scan
+                    </button>
+                </p>
+
+                <div id="edfResultCard" class="card edf-result" hidden>
+                    <h3>EDF built</h3>
+                    <p id="edfSummary" class="edf-summary"></p>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnToggleEdfRaw">Show raw JSON</button>
+                    <pre id="edfPreview" class="edf-preview" hidden></pre>
+                </div>
+
+                <p style="margin-top:1.25rem;">
+                    <button type="button" class="btn btn-primary" id="btnContinueFaceLock" disabled>
+                        Continue to Face Lock →
+                    </button>
+                </p>
+            </section>
+
+            <section class="panel panel-wide" data-panel="step-2" hidden>
+                <h2>Master Face Lock</h2>
+                <p class="lead">Pick the definitive face reference. Every generated image will trace these exact pixels.</p>
+
+                <div class="card">
+                    <h3>Select from uploaded photos</h3>
+                    <p class="card-hint">Choose the clearest front-facing or high-res close-up from your ingest set.</p>
+                    <div id="faceSelectionGrid" class="face-grid"></div>
+                    <p id="faceGridEmpty" class="empty-hint" hidden>No photos in your media set — upload a dedicated face reference below.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Or upload a dedicated face reference</h3>
+                    <p class="card-hint">Drag & drop or click — optional high-res close-up (does not count toward the 30-photo ingest limit).</p>
+                    <div id="faceUploadZone" class="media-dropzone media-dropzone-compact" tabindex="0" role="button" aria-label="Upload face reference">
+                        <div class="dropzone-inner">
+                            <span class="dropzone-icon">+</span>
+                            <p><strong>Drag & drop</strong> or click to add a face close-up</p>
+                        </div>
+                        <input type="file" id="faceUploadInput" accept="image/jpeg,image/png,image/webp" hidden>
+                    </div>
+                    <div id="dedicatedFacePreview" class="face-preview-card" hidden>
+                        <img id="dedicatedFaceImg" alt="Dedicated face reference">
+                        <div>
+                            <strong id="dedicatedFaceName"></strong>
+                            <button type="button" class="btn btn-ghost btn-sm" id="btnClearDedicatedFace">Clear</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="faceLockPreview" class="card face-lock-selected" hidden>
+                    <div class="face-lock-header">
+                        <h3 id="faceLockPreviewTitle">Selected for lock</h3>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnClearFaceSelection">Clear</button>
+                    </div>
+                    <div class="face-lock-row">
+                        <img id="faceLockPreviewImg" alt="Selected face">
+                        <span id="faceLockPreviewName"></span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Body reference <span class="optional-tag">optional</span></h3>
+                    <p class="card-hint">A full-body shot used only for build and proportions. Requires reference mode "Face + body" in Settings. Pick from your ingest set the same way as the master face, or upload a dedicated photo.</p>
+                    <div id="bodySelectionGrid" class="face-grid"></div>
+                    <p id="bodyGridEmpty" class="empty-hint" hidden>No photos in your media set — upload a dedicated body reference below.</p>
+                    <h3 style="margin-top:1rem;">Or upload a dedicated body reference</h3>
+                    <div id="bodyUploadZone" class="media-dropzone media-dropzone-compact" tabindex="0" role="button" aria-label="Upload body reference">
+                        <div class="dropzone-inner">
+                            <span class="dropzone-icon">+</span>
+                            <p><strong>Drag & drop</strong> or click to add a full-body shot</p>
+                        </div>
+                        <input type="file" id="bodyUploadInput" accept="image/jpeg,image/png,image/webp" hidden>
+                    </div>
+                    <div id="bodyRefPreview" class="face-preview-card" hidden>
+                        <img id="bodyRefImg" alt="Body reference">
+                        <div>
+                            <strong id="bodyRefName"></strong>
+                            <button type="button" class="btn btn-ghost btn-sm" id="btnClearBodyRef">Clear</button>
+                        </div>
+                    </div>
+                </div>
+
+                <p style="margin-top:1.25rem;">
+                    <button type="button" class="btn btn-primary btn-block" id="btnLockMasterFace" disabled>
+                        Lock Master Face
+                    </button>
+                </p>
+
+                <p style="margin-top:0.75rem;">
+                    <button type="button" class="btn btn-primary" id="btnContinueProfile" disabled>
+                        Continue to Profile →
+                    </button>
+                </p>
+            </section>
+
+            <section class="panel panel-wide" data-panel="step-3" hidden>
+                <h2>Identity Profile</h2>
+                <p class="lead">Define who she is. This matrix drives narrative tone, speech, and relationship dynamics.</p>
+
+                <div class="card">
+                    <form id="profileForm" class="profile-form">
+                        <div class="field-row profile-name-age">
+                            <div class="field">
+                                <div class="field-head">
+                                    <label for="profName">Name</label>
+                                    <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-name" data-autofill="name"> Auto-Fill</label>
+                                </div>
+                                <input type="text" id="profName" placeholder="e.g. Mia" autocomplete="off">
+                            </div>
+                            <div class="field">
+                                <div class="field-head">
+                                    <label for="profAge">Age</label>
+                                    <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-age" data-autofill="age"> Auto-Fill</label>
+                                </div>
+                                <input type="text" id="profAge" inputmode="numeric" placeholder="e.g. 22" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profArchetype">Role / archetype</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-archetype" data-autofill="archetype"> Auto-Fill</label>
+                            </div>
+                            <input type="text" id="profArchetype" placeholder="e.g. College student, goth streamer, nurse" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profRelationship">Relationship to you</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-relationship" data-autofill="relationship"> Auto-Fill</label>
+                            </div>
+                            <input type="text" id="profRelationship" placeholder="e.g. Ex-girlfriend, Tinder match, boss, stranger" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profLocation">Location (timezone)</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-location" data-autofill="location"> Auto-Fill</label>
+                            </div>
+                            <input type="text" id="profLocation" placeholder="e.g. Los Angeles, CA / Tokyo" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profPersonality">Personality & speech</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-personality" data-autofill="personality"> Auto-Fill</label>
+                            </div>
+                            <input type="text" id="profPersonality" placeholder="e.g. Bratty/slang, shy/formal, direct/flirty" autocomplete="off">
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profLoyalty">Difficulty / loyalty</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-loyalty" data-autofill="loyalty"> Auto-Fill</label>
+                            </div>
+                            <select id="profLoyalty">
+                                <option value="Low (Easy/Eager)">Low (easy / eager)</option>
+                                <option value="Medium (Balanced)" selected>Medium (balanced)</option>
+                                <option value="High (Hard to get)">High (hard to get)</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <div class="field-head">
+                                <label for="profNotes">Extra notes & backstory</label>
+                                <label class="autofill-toggle"><input type="checkbox" id="profAutoFill-notes" data-autofill="notes"> Auto-Fill</label>
+                            </div>
+                            <textarea id="profNotes" rows="3" placeholder="Quirks, habits, kinks, or backstory?"></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <p id="profileCharacterStatus" class="profile-character-status">New character draft — not saved yet.</p>
+                <p id="profileLibraryHint" class="card-hint" style="margin-top:0.5rem;">Enter name and archetype (or Auto-Fill them) to save this character.</p>
+
+                <p class="profile-actions">
+                    <button type="button" class="btn btn-primary btn-block" id="btnSaveCharacterProfile">
+                        Save character
+                    </button>
+                    <button type="button" class="btn btn-primary btn-block" id="btnUpdateCharacterProfile" hidden>
+                        Save changes
+                    </button>
+                    <button type="button" class="btn btn-block" id="btnSaveCharacterAsNew" hidden>
+                        Save as new character
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnNewCharacterDraft">
+                        Start new character draft
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" id="btnLoadCharacterProfile">
+                        Load saved character…
+                    </button>
+                    <button type="button" class="btn btn-block" id="btnContinueProtocol">
+                        Continue to Protocol →
+                    </button>
+                </p>
+            </section>
+
+            <section class="panel panel-wide" data-panel="step-4" hidden>
+                <h2>Starting Protocol</h2>
+                <p class="lead">Choose how the simulation begins — open a DM thread or generate a Story post.</p>
+
+                <div class="protocol-grid">
+                    <button type="button" class="protocol-card" id="protocolCardA">
+                        <div class="protocol-card-head">
+                            <strong>Direct DM</strong>
+                            <span class="protocol-tag">DM</span>
+                        </div>
+                        <p>Opens a private Instagram DM thread — you send the first text in chat.</p>
+                    </button>
+
+                    <button type="button" class="protocol-card" id="protocolCardB1">
+                        <div class="protocol-card-head">
+                            <strong>Story · Sync</strong>
+                            <span class="protocol-tag">Story</span>
+                        </div>
+                        <p>Generates an Instagram Story post that matches her location and local time.</p>
+                    </button>
+
+                    <button type="button" class="protocol-card" id="protocolCardB2">
+                        <div class="protocol-card-head">
+                            <strong>Story · Shuffle</strong>
+                            <span class="protocol-tag">Story</span>
+                        </div>
+                        <p>Generates a randomized Story post — unexpected scene and a shuffled local time of day.</p>
+                    </button>
+
+                    <button type="button" class="protocol-card" id="protocolCardB3">
+                        <div class="protocol-card-head">
+                            <strong>Story · Director</strong>
+                            <span class="protocol-tag">Custom</span>
+                        </div>
+                        <p>You define the exact first Instagram Story scene to generate.</p>
+                        <input type="text" id="directorSceneInput" class="director-input" placeholder="e.g. Waking up in bed, messy hair?" hidden>
+                    </button>
+                </div>
+
+                <p style="margin-top:1.25rem;">
+                    <button type="button" class="btn btn-primary btn-block" id="btnInitializeSimulation" disabled>
+                        Initialize & Lock Phase 1
+                    </button>
+                </p>
+            </section>
+
+            <section class="panel standby-panel" data-panel="step-5" hidden>
+                <div class="standby-header">
+                    <div class="standby-header-text">
+                        <h2>System Standby</h2>
+                        <p class="lead standby-lead">Phase 1 locked. Ready when you are.</p>
+                    </div>
+                    <div class="standby-actions">
+                        <button type="button" class="btn btn-primary" id="btnLaunchSimulation">
+                            Launch Simulation →
+                        </button>
+                        <button type="button" class="btn" id="btnOpenChatsStandby">Continue saved chat…</button>
+                    </div>
+                </div>
+
+                <div class="card standby-handoff">
+                    <div class="standby-handoff-row">
+                        <span><em>Character</em> <strong id="standbyCharacterName">—</strong></span>
+                        <span><em>New sim</em> <strong id="standbyProtocol">—</strong></span>
+                        <span><em>Mode</em> <strong id="standbyMode">—</strong></span>
+                    </div>
+                    <p id="standbyInstruction" class="standby-instruction">—</p>
+                    <p id="standbyResumeHint" class="standby-resume-hint" hidden></p>
+                </div>
+
+                <div class="card standby-ref-card">
+                    <div class="standby-ref-grid">
+                        <div class="standby-ref-col">
+                            <h4>God-mode commands</h4>
+                            <div id="standbyCommandsList" class="standby-ref-list"></div>
+                        </div>
+                        <div class="standby-ref-col">
+                            <h4>Persona modes</h4>
+                            <div id="standbyPersonasList" class="standby-ref-list"></div>
+                        </div>
+                        <div class="standby-ref-col">
+                            <h4>Live metrics</h4>
+                            <div id="standbyMetricsList" class="standby-ref-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel simulation-panel" data-panel="step-6" hidden>
+                <div class="sim-topbar">
+                    <div>
+                        <h2>Active Simulation</h2>
+                        <p id="simCharacterLabel" class="sim-character-label">—</p>
+                        <div id="simUserProfileWrap" class="sim-user-profile" hidden>
+                            <label for="simUserProfileSelect">You</label>
+                            <select id="simUserProfileSelect" title="Operator profile for this chat"></select>
+                        </div>
+                    </div>
+                    <div class="sim-topbar-actions">
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnSkipWait" hidden title="Skip the current wall-clock wait (/skip wait)">Skip wait</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnRetryFace" disabled title="Regenerate with Face Recovery (identity lock)">Retry face</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnRetryPrompt" disabled title="Regenerate using the exact same prompt as the last image">Retry Last Image</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnViewStory" title="Generate an Instagram Story from her">Generate IG Story</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnOpenChats">Chats</button>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnToggleDebug" hidden>
+                            Debug
+                            <span id="debugUnreadBadge" class="debug-unread-badge" hidden></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="simGenBar" class="sim-gen-bar" hidden>
+                    <span class="sim-gen-dot"></span>
+                    <span class="sim-gen-label">She’s thinking…</span>
+                    <button type="button" class="btn btn-ghost btn-sm sim-gen-cancel" id="btnCancelTurn" disabled>Cancel</button>
+                </div>
+
+                <div class="sim-layout">
+                    <div class="phone-shell">
+                        <div class="phone-bezel">
+                            <div class="phone-status-bar" aria-hidden="true">
+                                <span class="phone-status-left">
+                                    <span class="phone-status-time" id="phoneStatusTime">9:41 AM</span>
+                                    <span class="phone-status-weekday" id="phoneStatusWeekday">Fri</span>
+                                    <span class="phone-status-special" id="phoneStatusSpecial" hidden></span>
+                                </span>
+                                <span class="phone-status-icons">
+                                    <span>5G</span>
+                                    <span class="phone-signal" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                                    <span class="phone-battery" aria-hidden="true"></span>
+                                </span>
+                            </div>
+                            <div class="phone-chat-header" id="phoneChatHeader">
+                                <span class="phone-header-avatar" id="phoneHeaderAvatar" aria-hidden="true"></span>
+                                <div class="phone-header-text">
+                                    <strong id="phoneHeaderName">Character</strong>
+                                    <span class="phone-presence" id="phonePresence" data-state="idle">Last seen recently</span>
+                                </div>
+                            </div>
+                            <div class="phone-screen">
+                                <div id="phoneEmpty" class="phone-empty">
+                                    <p>Visuals appear here</p>
+                                    <span>Send a message to generate the first turn</span>
+                                </div>
+                                <div id="phoneFeed" class="phone-feed"></div>
+                            </div>
+                            <div class="phone-home-bar"></div>
+                        </div>
+                    </div>
+
+                    <div class="sim-console">
+                        <div class="metrics-hud card">
+                            <span>Persona <strong id="hudPersona">Standard</strong></span>
+                            <span>Mode <strong id="hudMode">DM</strong></span>
+                            <span>Arousal <strong id="hudArousal">0</strong></span>
+                            <span>Tease <strong id="hudTease">0</strong></span>
+                            <span>Awareness <strong id="hudAwareness">0</strong></span>
+                            <span>Thermal <strong id="hudThermal">Normal</strong></span>
+                            <span>Mood <strong id="hudMood">Neutral · 1</strong></span>
+                            <span>Outfit <strong id="hudOutfit">—</strong></span>
+                            <span>Env <strong id="hudEnv">—</strong></span>
+                            <span class="hud-compliance" id="hudComplianceWrap">Engagement <strong id="hudCompliance">Warm (55)</strong></span>
+                        </div>
+
+                        <div id="chatLog" class="chat-log card"></div>
+
+                        <div class="sim-composer">
+                            <div id="toast-root-player" class="toast-root toast-root-player" aria-live="polite"></div>
+                            <label class="sim-gen-image-option checkbox-row" title="Stories always generate a photo. Uncheck to skip images on DM turns — including /next scene when it lands as a DM.">
+                                <input type="checkbox" id="checkGenerateImage" checked>
+                                <span>Generate image this turn</span>
+                            </label>
+
+                            <div class="sim-input-row">
+                                <div class="cmd-input-wrap">
+                                    <input type="text" id="simInput" placeholder="Message or /command?" autocomplete="off"
+                                           role="combobox" aria-expanded="false" aria-controls="cmdAutocomplete" aria-autocomplete="list">
+                                    <ul class="cmd-autocomplete" id="cmdAutocomplete" role="listbox" aria-label="Commands" hidden></ul>
+                                </div>
+                                <div class="emoji-picker-wrap">
+                                    <button type="button" class="btn btn-ghost emoji-picker-btn" id="btnEmojiPicker"
+                                            aria-expanded="false" aria-controls="emojiPickerPanel" title="Emoji">
+                                        😊
+                                    </button>
+                                    <div class="emoji-picker-panel" id="emojiPickerPanel" role="dialog" aria-label="Emoji" hidden>
+                                        <div class="emoji-picker-grid" id="emojiPickerGrid"></div>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-primary" id="btnSendMessage">Send</button>
+                            </div>
+                        </div>
+
+                        <div class="control-deck card" id="controlDeck">
+                            <button type="button" class="control-deck-toggle" id="btnToggleDeck" aria-expanded="true" aria-controls="controlDeckBody">
+                                <span>Control deck</span>
+                                <span class="control-deck-caret" aria-hidden="true">▾</span>
+                            </button>
+
+                            <div class="control-deck-body" id="controlDeckBody">
+                                <div class="deck-group">
+                                    <span class="deck-label">Persona <em>sticky</em></span>
+                                    <div class="deck-pills" id="deckPersonas"></div>
+                                </div>
+
+                                <div class="deck-group">
+                                    <span class="deck-label">Thermal</span>
+                                    <div class="deck-pills" id="deckThermal"></div>
+                                </div>
+
+                                <div class="deck-group">
+                                    <span class="deck-label">Directives <em>send a turn</em></span>
+                                    <div class="deck-actions" id="deckDirectives"></div>
+                                </div>
+
+                                <div class="deck-arg-panel" id="deckArgRow" hidden>
+                                    <p class="deck-arg-preview" id="deckArgPreview" hidden></p>
+                                    <div class="deck-arg-row">
+                                        <textarea id="deckArgInput" rows="1" autocomplete="off"></textarea>
+                                        <button type="button" class="btn btn-sm btn-primary" id="btnDeckArgSend">Send</button>
+                                        <button type="button" class="btn btn-sm btn-ghost" id="btnDeckArgCancel">Cancel</button>
+                                    </div>
+                                </div>
+
+                                <p class="deck-pending" id="deckPending" hidden></p>
+                            </div>
+                        </div>
+
+                        <div id="debugPanel" class="debug-panel card" hidden>
+                            <div class="debug-panel-head">
+                                <h3>Developer Debug</h3>
+                                <div class="debug-panel-actions">
+                                    <span id="debugApiModeBadge" class="debug-api-badge" hidden></span>
+                                    <button type="button" class="btn btn-ghost btn-sm" id="btnRefreshDebug">Refresh</button>
+                                    <button type="button" class="btn btn-sm btn-primary" id="btnCopyDebug" title="Copy a paste-ready report. You’ll be asked how many recent turns to include.">Copy troubleshoot report</button>
+                                </div>
+                            </div>
+                            <details open>
+                                <summary>
+                                    DEV log
+                                    <span id="debugLogCount" class="debug-log-count"></span>
+                                    <button type="button" class="btn btn-ghost btn-sm debug-log-clear" id="btnClearDevLog">Clear</button>
+                                </summary>
+                                <div id="debugDecisions" class="debug-decisions" aria-live="polite"></div>
+                            </details>
+                            <details open>
+                                <summary>
+                                    Live state
+                                    <span id="debugRtBadge" class="debug-rt-badge" hidden>OFF</span>
+                                </summary>
+                                <div id="debugLiveState" class="debug-immersion" aria-live="polite"></div>
+                            </details>
+                            <details open>
+                                <summary>Immersion / timers</summary>
+                                <div id="debugImmersion" class="debug-immersion" aria-live="polite"></div>
+                                <details class="debug-immersion-raw">
+                                    <summary>Raw immersion snapshot</summary>
+                                    <pre id="debugImmersionRaw" class="debug-pre">—</pre>
+                                </details>
+                            </details>
+                            <details open>
+                                <summary>Last turn</summary>
+                                <pre id="debugLastTurn" class="debug-pre">—</pre>
+                            </details>
+                            <details>
+                                <summary>Session (raw JSON)</summary>
+                                <pre id="debugSession" class="debug-pre">—</pre>
+                            </details>
+                            <details>
+                                <summary>EDF</summary>
+                                <pre id="debugEdf" class="debug-pre">—</pre>
+                            </details>
+                            <details>
+                                <summary>Last image prompt</summary>
+                                <pre id="debugImagePrompt" class="debug-pre">—</pre>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="clockResumeOverlay" class="clock-resume-overlay" hidden aria-hidden="true">
+                    <div class="clock-resume-card" role="alertdialog" aria-modal="true" aria-labelledby="clockResumeTitle" aria-describedby="clockResumeLead">
+                        <p class="clock-resume-kicker">Time gap</p>
+                        <h2 id="clockResumeTitle">A lot of time has passed</h2>
+                        <p id="clockResumeLead" class="clock-resume-lead">You've been away. Choose how her world clock should continue.</p>
+                        <div class="clock-resume-actions">
+                            <button type="button" class="clock-resume-choice" data-clock-resume="keep">
+                                <strong>Continue from the same time</strong>
+                                <span class="clock-resume-desc">Stay at the last scene. Her clock does not jump forward.</span>
+                                <span class="clock-resume-preview" id="clockResumeKeepPreview"></span>
+                            </button>
+                            <button type="button" class="clock-resume-choice clock-resume-choice-accent" data-clock-resume="her">
+                                <strong>Sync to real time in her location</strong>
+                                <span class="clock-resume-desc">Match the actual clock where she lives right now.</span>
+                                <span class="clock-resume-preview" id="clockResumeHerPreview"></span>
+                            </button>
+                            <button type="button" class="clock-resume-choice" data-clock-resume="user">
+                                <strong>Sync to your local time</strong>
+                                <span class="clock-resume-desc">Use your wall-clock time as her local time.</span>
+                                <span class="clock-resume-preview" id="clockResumeUserPreview"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="unresponsiveCapOverlay" class="unresponsive-cap-overlay" hidden aria-hidden="true">
+                    <div class="unresponsive-cap-card" role="alertdialog" aria-labelledby="unresponsiveCapTitle" aria-describedby="unresponsiveCapLead">
+                        <p class="unresponsive-cap-kicker">Credit guard</p>
+                        <h2 id="unresponsiveCapTitle">Paused after 5 turns without a reply</h2>
+                        <p id="unresponsiveCapLead" class="unresponsive-cap-lead">
+                            She already sent 5 messages in a row while you stayed quiet, so automatic follow-ups stopped to save credits.
+                            Wait for her, /next scene, /time pass, /jump, Generate IG Story, or send a message to continue — that resets the counter for 5 more.
+                        </p>
+                        <button type="button" class="btn btn-primary" id="btnUnresponsiveCapDismiss">Got it</button>
+                    </div>
+                </div>
+            </section>
+    </div>
+
+    <!-- Phone image lightbox -->
+    <div id="phoneLightbox" class="phone-lightbox" hidden aria-hidden="true">
+        <button type="button" class="phone-lightbox-backdrop" id="btnPhoneLightboxBackdrop" aria-label="Close"></button>
+        <div class="phone-lightbox-stage" role="dialog" aria-modal="true" aria-labelledby="phoneLightboxCaption">
+            <div class="phone-lightbox-actions">
+                <button type="button" class="phone-lightbox-btn" id="btnPhoneLightboxDownload" aria-label="Download image" title="Download">Download</button>
+                <button type="button" class="phone-lightbox-btn phone-lightbox-close" id="btnPhoneLightboxClose" aria-label="Close" title="Close">×</button>
+            </div>
+            <img id="phoneLightboxImg" class="phone-lightbox-img" alt="Expanded visual" hidden>
+            <p id="phoneLightboxCaption" class="phone-lightbox-caption" hidden></p>
+        </div>
+    </div>
+
+    <!-- Browser storage full -->
+    <div id="storageFullModal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-labelledby="storageFullTitle" aria-describedby="storageFullBody">
+            <header>
+                <h2 id="storageFullTitle">Browser storage is full</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseStorageFull" aria-label="Close">×</button>
+            </header>
+            <div id="storageFullBody" class="storage-full-body">
+                <p>Mirage couldn't save because this browser's local storage for the site is full (usually about <strong>5 MB</strong> total).</p>
+                <p class="storage-full-lead">That space holds saved characters (EDF text + chat history) and settings — face/body photos and the photo library now live in larger IndexedDB storage.</p>
+                <p><strong>To free space:</strong></p>
+                <ul class="storage-full-list">
+                    <li>Delete characters you don't need (this also removes their chats)</li>
+                    <li>Or delete old chats from Saved Chats</li>
+                    <li>Then try saving again</li>
+                </ul>
+                <p id="storageFullContext" class="card-hint" hidden></p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="btnStorageFullManageChars">Manage characters</button>
+                <button type="button" class="btn btn-primary" id="btnStorageFullOk">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Chats Modal -->
+    <div id="chatsModal" class="modal-backdrop" hidden>
+        <div class="modal modal-wide" role="dialog" aria-labelledby="chatsModalTitle">
+            <header>
+                <h2 id="chatsModalTitle">Saved Chats</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseChats">×</button>
+            </header>
+            <p id="chatsModalHint" class="card-hint">Each chat saves metrics, message history, and her latest turn image automatically.</p>
+            <div id="chatsEmpty" class="empty-hint">No saved chats for this character yet.</div>
+            <div id="chatsList" class="chat-save-list"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="btnNewChat">Start New Chat</button>
+                <button type="button" class="btn btn-primary" id="btnCloseChatsFooter">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session choice (after loading character with saved chats) -->
+    <div id="sessionChoiceModal" class="modal-backdrop" hidden>
+        <div class="modal modal-wide" role="dialog" aria-labelledby="sessionChoiceTitle">
+            <header>
+                <h2 id="sessionChoiceTitle">How do you want to play?</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseSessionChoice">×</button>
+            </header>
+            <p id="sessionChoiceLead" class="card-hint">This character has saved chats. Start fresh or pick up where you left off.</p>
+            <div class="session-choice-grid">
+                <button type="button" class="session-choice-card" id="btnSessionNew">
+                    <span class="session-choice-head">
+                        <strong>New simulation</strong>
+                        <span class="session-choice-tag">Fresh</span>
+                    </span>
+                    <span class="session-choice-desc">Pick protocol (DM or Story) and launch a brand-new chat.</span>
+                </button>
+                <button type="button" class="session-choice-card session-choice-card-accent" id="btnSessionContinue">
+                    <span class="session-choice-head">
+                        <strong>Continue latest chat</strong>
+                        <span class="session-choice-tag" id="sessionChoiceLatestTag">—</span>
+                    </span>
+                    <span class="session-choice-desc" id="sessionChoiceLatestMeta">—</span>
+                </button>
+                <button type="button" class="session-choice-card session-choice-card-muted" id="btnSessionBrowse">
+                    <span class="session-choice-head">
+                        <strong>Browse saved chats</strong>
+                        <span class="session-choice-tag">All</span>
+                    </span>
+                    <span class="session-choice-desc">Pick any saved conversation for this character.</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Characters Modal -->
+    <div id="charactersModal" class="modal-backdrop" hidden>
+        <div class="modal modal-wide" role="dialog" aria-labelledby="charactersTitle">
+            <header>
+                <h2 id="charactersTitle">Load Character</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseCharacters">×</button>
+            </header>
+
+            <div id="charactersEmpty" class="empty-hint">No saved characters yet.</div>
+            <div id="charactersList" class="characters-list"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" id="btnCloseCharactersFooter">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Modal — full-viewport settings workspace -->
+    <div id="configModal" class="modal-backdrop modal-backdrop-settings" hidden>
+        <div class="modal modal-settings" role="dialog" aria-labelledby="configTitle">
+            <header class="settings-header">
+                <div class="settings-header-text">
+                    <h2 id="configTitle">Engine Settings</h2>
+                    <p class="settings-subtitle">Connection, models, chat feel, and image pipeline</p>
+                </div>
+                <button type="button" class="btn btn-ghost" id="btnCloseConfig" aria-label="Close settings">×</button>
+            </header>
+
+            <div class="settings-body">
+                <section class="settings-card settings-card-conn" aria-labelledby="settingsConnHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsConnHeading">Connection</h3>
+                        <span class="settings-card-tag">Required</span>
+                    </div>
+                    <div class="field">
+                        <label for="selectApiProvider">API provider</label>
+                        <select id="selectApiProvider">
+                            <option value="google">Google AI (official)</option>
+                            <option value="kie">kie.ai (cheaper)</option>
+                        </select>
+                        <p class="field-hint">kie.ai routes thinking + Nano Banana through their Market API. Official keeps Google AI Studio.</p>
+                    </div>
+                    <div class="field" id="fieldGoogleApiKey">
+                        <label for="inputApiKey">Google AI API Key</label>
+                        <input type="password" id="inputApiKey" placeholder="AIzaSy…" autocomplete="off">
+                    </div>
+                    <div class="field" id="fieldKieApiKey" hidden>
+                        <label for="inputKieApiKey">kie.ai API Key</label>
+                        <input type="password" id="inputKieApiKey" placeholder="Bearer key from kie.ai dashboard" autocomplete="off">
+                        <p class="field-hint">Get a key at <code>kie.ai/api-key</code>. Requires local proxy (START MIRAGE.bat).</p>
+                    </div>
+                    <p class="field-hint settings-note" id="settingsConnNoteGoogle">
+                        Serve via <code>http://localhost</code> (use <strong>START MIRAGE.bat</strong>).
+                        Thinking uses <code>generateContent</code>; images use <code>/interactions</code> via the local proxy.
+                        Test Connection verifies both (image test can take up to 5&nbsp;min on Pro).
+                    </p>
+                    <p class="field-hint settings-note" id="settingsConnNoteKie" hidden>
+                        Serve via <code>http://localhost</code> (use <strong>START MIRAGE.bat</strong>).
+                        Thinking uses kie chat completions; images use kie jobs (upload → generate → poll).
+                        Usually much cheaper than official Google billing for Nano Banana.
+                    </p>
+                </section>
+
+                <section class="settings-card settings-card-models" aria-labelledby="settingsModelsHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsModelsHeading">Models</h3>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnOpenModelGuide">Model guide</button>
+                    </div>
+                    <div class="field">
+                        <label for="selectThinkingModel">Thinking — chat turns</label>
+                        <select id="selectThinkingModel"></select>
+                        <p class="field-hint">Normal replies, delivery, tracking, and image directives. Grouped by lab. $ is relative cost.</p>
+                    </div>
+                    <div class="field">
+                        <label for="selectImageModel">Image — Nano Banana</label>
+                        <select id="selectImageModel"></select>
+                        <p class="field-hint">Photo generation. Usually the biggest credit cost.</p>
+                    </div>
+                    <div class="field field-last" id="fieldSceneThinkingModel">
+                        <div class="field-label-row">
+                            <label for="selectSceneThinkingModel">Thinking — scene commands</label>
+                            <button type="button" class="btn btn-ghost btn-sm" id="btnUnlockSceneModel">Switch Model</button>
+                        </div>
+                        <select id="selectSceneThinkingModel" disabled></select>
+                        <p class="field-hint" id="sceneModelLockHint">Not recommended to switch. Defaults to Gemini 3.7. Grok chat auto-uses the same Grok here so /jump stays uncensored.</p>
+                    </div>
+                </section>
+
+                <section class="settings-card settings-card-user" aria-labelledby="settingsUserHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsUserHeading">Your profiles</h3>
+                        <span class="settings-card-tag">Operator</span>
+                    </div>
+                    <p class="field-hint">
+                        Details about <strong>you</strong> (the human). The active profile is pinned onto new chats.
+                        You can switch profiles per chat from the simulation top bar.
+                    </p>
+
+                    <div id="userProfilesEmpty" class="empty-hint" hidden>No user profiles yet.</div>
+                    <div id="userProfilesList" class="user-profiles-list"></div>
+
+                    <div class="user-profile-form card" style="margin-top: 0.85rem;">
+                        <div class="field">
+                            <label for="userProfLabel">Profile name</label>
+                            <input type="text" id="userProfLabel" placeholder="e.g. Default, Work, Soft boy">
+                        </div>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="userProfDisplayName">Your name</label>
+                                <input type="text" id="userProfDisplayName" placeholder="What you go by">
+                            </div>
+                            <div class="field">
+                                <label for="userProfNickname">What she calls you</label>
+                                <input type="text" id="userProfNickname" placeholder="babe, Alex, …">
+                            </div>
+                        </div>
+                        <div class="field-row">
+                            <div class="field">
+                                <label for="userProfAge">Age</label>
+                                <input type="text" id="userProfAge" placeholder="21">
+                            </div>
+                            <div class="field">
+                                <label for="userProfGender">Gender</label>
+                                <select id="userProfGender">
+                                    <option value="male" selected>Male</option>
+                                    <option value="female">Female</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="userProfAppearance">Appearance</label>
+                            <textarea id="userProfAppearance" rows="2" placeholder="How you look — hair, build, style?"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="userProfPersonality">Personality / vibe</label>
+                            <textarea id="userProfPersonality" rows="2" placeholder="How you come across in chat"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="userProfInterests">Interests / preferences</label>
+                            <textarea id="userProfInterests" rows="2" placeholder="Hobbies, tastes, boundaries she should know"></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="userProfNotes">Notes</label>
+                            <textarea id="userProfNotes" rows="2" placeholder="Anything else for continuity"></textarea>
+                        </div>
+                        <p id="userProfFormHint" class="card-hint">New profile — save to add it to the library.</p>
+                        <div class="modal-actions" style="margin-top: 0.5rem;">
+                            <button type="button" class="btn" id="btnUserProfNew">New</button>
+                            <button type="button" class="btn btn-primary" id="btnUserProfSave">Save profile</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="settings-card settings-card-chat" aria-labelledby="settingsChatHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsChatHeading">Chat experience</h3>
+                    </div>
+                    <div class="field">
+                        <label for="selectPacingMode">Pacing mode</label>
+                        <select id="selectPacingMode">
+                            <option value="instant">Instant (default) — no wall waits</option>
+                            <option value="hybrid">Hybrid — fast texts, wait on time jumps</option>
+                            <option value="realtime">Realtime — full phone theater</option>
+                        </select>
+                        <p class="field-hint">
+                            Instant: Seen while thinking, short typing. Hybrid: same, but time jumps make you wait.
+                            Realtime: Delivered → Seen delays, left-on-read, idle chase. Slash commands stay snappy.
+                        </p>
+                    </div>
+                    <div class="field">
+                        <label for="selectRoutineMode">Her day</label>
+                        <select id="selectRoutineMode">
+                            <option value="jumps">Clock jumps only — /time pass, Wait, idle drift</option>
+                            <option value="stories" selected>Jumps and Stories (default)</option>
+                            <option value="living">Living world — also when the hour-band changes mid-chat</option>
+                        </select>
+                        <p class="field-hint">
+                            She has a daily rhythm inferred from her dossier, clock, and persona.
+                            Jumps and Stories: place follows time skips and Stories.
+                            Living world can move her mid-DM when lunch / commute / night starts.
+                        </p>
+                    </div>
+                    <div class="field">
+                        <label for="selectMaxReplyChars">Max characters per message</label>
+                        <select id="selectMaxReplyChars">
+                            <option value="80">80 — one-liner ceiling</option>
+                            <option value="140">140 — short text</option>
+                            <option value="240" selected>240 — default ceiling</option>
+                            <option value="0">Off (no maximum)</option>
+                        </select>
+                        <p class="field-hint">
+                            Instruction to the thinking model: each bubble she sends stays under this many
+                            characters — DM text, Story captions, and secondMessage each count separately.
+                            Shorter is normal. This never forces a length.
+                        </p>
+                    </div>
+                    <div class="field field-last">
+                        <label for="selectMaxThinkingInput">Max thinking prompt per turn</label>
+                        <select id="selectMaxThinkingInput">
+                            <option value="2500">2.5k — tight (same prompt, fewer words)</option>
+                            <option value="4500" selected>4.5k — default</option>
+                            <option value="8000">8k — full wording</option>
+                            <option value="0">Unlimited (no compression)</option>
+                        </select>
+                        <p class="field-hint">
+                            Ceiling on the <em>input</em> we send the thinking model (system + LIVE STATE + history).
+                            Lower presets keep every instruction — they just use fewer words. Photos are billed separately.
+                        </p>
+                    </div>
+                </section>
+
+                <section class="settings-card settings-card-images" aria-labelledby="settingsImagesHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsImagesHeading">Images</h3>
+                    </div>
+                    <div class="field">
+                        <label for="selectReferenceMode">Reference mode</label>
+                        <select id="selectReferenceMode">
+                            <option value="face+body">Face + body — best proportions</option>
+                            <option value="face">Face only — strongest identity lock</option>
+                        </select>
+                        <p class="field-hint">Falls back to face-only if no body ref is set.</p>
+                    </div>
+                    <div id="chatImageSaveOptions" class="field">
+                        <label for="inputChatImageSaveCountAlways">Resume — images kept per chat</label>
+                        <input type="number" id="inputChatImageSaveCountAlways" min="1" max="20" value="3" step="1">
+                        <p class="field-hint">Last N generated stills in the phone feed (default 3). Chat text is stored separately — last 100 user + AI messages, plus matching system / Dev lines. Text is tiny; images are the heavy part.</p>
+                    </div>
+                    <div class="field field-checkbox">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="checkSaveImages">
+                            <span>Also save / download generated images</span>
+                        </label>
+                        <p class="field-hint">Extra copies beyond chat resume storage.</p>
+                    </div>
+                    <div id="imageSaveOptionsExtra" class="settings-subgroup" hidden>
+                        <div class="field">
+                            <label for="selectImageSaveMode">Save location</label>
+                            <select id="selectImageSaveMode">
+                                <option value="browser">Browser storage (IndexedDB)</option>
+                                <option value="download">Downloads folder</option>
+                                <option value="both">Both</option>
+                            </select>
+                        </div>
+                        <div class="field field-last">
+                            <label for="inputDownloadPrefix">Optional filename tag</label>
+                            <input type="text" id="inputDownloadPrefix" placeholder="Optional extra tag">
+                            <p class="field-hint">Downloads use the live character name automatically. Optional tag is appended only if it differs from that name. The last bit is the local date and time the file was saved, so two downloads of the same look don't overwrite. Example: <code>maya-nightout-2026-08-14_140000.png</code></p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="settings-card settings-card-dev" aria-labelledby="settingsDevHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsDevHeading">Developer</h3>
+                        <span class="settings-card-tag settings-card-tag-dev">Dev</span>
+                    </div>
+                    <div class="field field-checkbox">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="checkDeveloperMode">
+                            <span>Developer Mode</span>
+                        </label>
+                            <p class="field-hint">Debug panel + DEV toasts. The chat stays a conversation.</p>
+                    </div>
+                    <div id="devSettingsOptions" class="settings-subgroup" hidden>
+                        <div class="field" id="fieldMaxWait">
+                            <label for="inputMaxWaitMin">Max real wait (minutes)</label>
+                            <input type="number" id="inputMaxWaitMin" min="1" max="30" value="10" step="1">
+                            <p class="field-hint">
+                                Caps wall-clock waits for Hybrid / Realtime time jumps (default 10). Unused in Instant.
+                            </p>
+                        </div>
+                        <div class="field">
+                            <label for="inputQuietChaseMin">Silence before follow-up (minutes)</label>
+                            <input type="number" id="inputQuietChaseMin" min="1" max="30" value="3" step="1">
+                            <p class="field-hint">
+                                After her last message, how long you can stay quiet before she may ditch, double-text, or post a Story.
+                            </p>
+                        </div>
+                        <div class="field field-checkbox">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="checkProactiveStories" checked>
+                                <span>Proactively generate stories</span>
+                            </label>
+                            <p class="field-hint">
+                                She may post an Instagram Story on her own after waits, time skips, unread, or ignore beats.
+                                Off = only DM follow-ups or going quiet (Generate IG Story button and protocol opening stories still work).
+                            </p>
+                        </div>
+                        <div class="field field-checkbox">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="checkMockImages">
+                                <span>Mock images (no image credits)</span>
+                            </label>
+                            <p class="field-hint">Real thinking; labeled placeholder from <code>imageDirective</code>.</p>
+                        </div>
+                        <div class="field field-checkbox">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="checkSceneContinuityRef" checked>
+                                <span>Last-frame SCENE continuity (outfit / env refs)</span>
+                            </label>
+                            <p class="field-hint">
+                                Send her last generated photo as a wardrobe + environment reference.
+                                Face/body anchors still win identity. Off = library outfit stills only.
+                            </p>
+                        </div>
+                        <div class="field field-checkbox">
+                            <label class="checkbox-row">
+                                <input type="checkbox" id="checkMockThinking">
+                                <span>Mock thinking (fully offline)</span>
+                            </label>
+                            <p class="field-hint">Zero Google calls. Plumbing only — auto-enables mock images.</p>
+                        </div>
+                        <div class="field field-last">
+                            <button type="button" class="btn btn-ghost" id="btnResetMemory">Reset memory…</button>
+                            <p class="field-hint">
+                                Factory-reset settings and reload as a first launch. You will be asked whether to also delete saved characters and chats.
+                            </p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <footer class="settings-footer modal-actions">
+                <button type="button" class="btn btn-ghost" id="btnCancelConfig">Cancel</button>
+                <button type="button" class="btn" id="btnTestConfig">Test Connection</button>
+                <button type="button" class="btn btn-primary" id="btnSaveConfig">Save</button>
+            </footer>
+        </div>
+    </div>
+
+
+    <div id="modelGuideOverlay" class="safety-gate-overlay" hidden aria-hidden="true">
+        <div class="safety-gate-card model-guide-dialog" role="dialog" aria-labelledby="modelGuideTitle" aria-modal="true">
+            <div class="settings-card-head" style="margin-bottom:0.85rem;">
+                <h2 id="modelGuideTitle" style="margin:0;font-size:1.35rem;">Model guide</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseModelGuide" aria-label="Close">×</button>
+            </div>
+            <div id="modelGuideBody" class="model-guide-body"></div>
+        </div>
+    </div>
+
+    <div id="resetMemoryOverlay" class="safety-gate-overlay" hidden aria-hidden="true">
+        <div class="safety-gate-card" role="dialog" aria-labelledby="resetMemoryTitle" aria-modal="true">
+            <p class="safety-gate-kicker">Developer</p>
+            <h2 id="resetMemoryTitle">Reset memory?</h2>
+            <p class="safety-gate-lead">
+                This restores factory-default settings (models, pacing, image options, and the Default user profile: male, 21),
+                then reloads. Age and consent screens show again even if you keep your library.
+            </p>
+            <label class="checkbox-row" style="align-items:flex-start;gap:0.6rem;">
+                <input type="checkbox" id="checkResetWipeLibrary">
+                <span>Also delete saved characters, chats, photos, and extra operator profiles.</span>
+            </label>
+            <div class="safety-gate-actions" style="margin-top:1.1rem;">
+                <button type="button" class="btn btn-ghost" id="btnResetMemoryCancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnResetMemoryConfirm">Reset and reload</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-root-dev" class="toast-root toast-root-dev" aria-live="polite"></div>
+
+    <div id="loadingOverlay" class="loading-overlay" hidden>
+        <div class="loading-box">
+            <span class="loading-label">Working…</span>
+        </div>
+    </div>
+
+    <!-- 1.1 Age gate — blocks entire app until verified -->
+    <div id="ageGateOverlay" class="safety-gate-overlay" hidden aria-hidden="true">
+        <div class="safety-gate-card" role="dialog" aria-labelledby="ageGateTitle" aria-modal="true">
+            <p class="safety-gate-kicker">Required</p>
+            <h2 id="ageGateTitle">Age verification</h2>
+            <p class="safety-gate-lead">
+                Mirage Engine is for adults only. Enter your date of birth and confirm you are 18 or older.
+                This check runs once per browser and is stored locally on your device.
+            </p>
+            <div class="safety-dob-row" role="group" aria-label="Date of birth">
+                <div class="field">
+                    <label for="ageGateMonth">Month</label>
+                    <select id="ageGateMonth">
+                        <option value="">—</option>
+                        <option value="01">January</option>
+                        <option value="02">February</option>
+                        <option value="03">March</option>
+                        <option value="04">April</option>
+                        <option value="05">May</option>
+                        <option value="06">June</option>
+                        <option value="07">July</option>
+                        <option value="08">August</option>
+                        <option value="09">September</option>
+                        <option value="10">October</option>
+                        <option value="11">November</option>
+                        <option value="12">December</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="ageGateDay">Day</label>
+                    <select id="ageGateDay">
+                        <option value="">—</option>
+                        <option value="01">1</option><option value="02">2</option><option value="03">3</option>
+                        <option value="04">4</option><option value="05">5</option><option value="06">6</option>
+                        <option value="07">7</option><option value="08">8</option><option value="09">9</option>
+                        <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                        <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+                        <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+                        <option value="19">19</option><option value="20">20</option><option value="21">21</option>
+                        <option value="22">22</option><option value="23">23</option><option value="24">24</option>
+                        <option value="25">25</option><option value="26">26</option><option value="27">27</option>
+                        <option value="28">28</option><option value="29">29</option><option value="30">30</option>
+                        <option value="31">31</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="ageGateYear">Year</label>
+                    <select id="ageGateYear">
+                        <option value="">—</option>
+                    </select>
+                </div>
+            </div>
+            <label class="safety-check">
+                <input type="checkbox" id="ageGateAck">
+                <span>I confirm that I am at least 18 years old and that the date of birth above is accurate.</span>
+            </label>
+            <p id="ageGateError" class="safety-gate-error" hidden></p>
+            <div class="safety-gate-actions">
+                <button type="button" class="btn btn-primary" id="btnAgeGateContinue" disabled>Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1.2 Fiction / consent checklist — once, localStorage -->
+    <div id="fictionConsentOverlay" class="safety-gate-overlay" hidden aria-hidden="true">
+        <div class="safety-gate-card safety-gate-card-wide" role="dialog" aria-labelledby="fictionConsentTitle" aria-modal="true">
+            <p class="safety-gate-kicker">Required — once</p>
+            <h2 id="fictionConsentTitle">Fiction &amp; consent</h2>
+            <p class="safety-gate-lead">
+                Complete this checklist before setup. Your acknowledgments are stored only on this device.
+            </p>
+            <ul class="safety-check-list">
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="fictionCheckRights">
+                        <span><strong>Rights.</strong> I will not upload or use images of real people unless I have the legal right and permission to do so.</span>
+                    </label>
+                </li>
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="fictionCheckFiction">
+                        <span><strong>Fiction only.</strong> Mirage characters and scenes are fictional entertainment. I will not present outputs as real photos of real people.</span>
+                    </label>
+                </li>
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="fictionCheckAdult">
+                        <span><strong>Adult subjects.</strong> All reference subjects and fictional characters I create are 18 years of age or older.</span>
+                    </label>
+                </li>
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="fictionCheckLiability">
+                        <span><strong>Responsibility.</strong> I am solely responsible for the media I provide and how I use this tool. I acknowledge Mirage is a simulation product, not a bypass for others' rights or the law.</span>
+                    </label>
+                </li>
+            </ul>
+            <div class="safety-gate-actions">
+                <button type="button" class="btn btn-primary" id="btnFictionConsentContinue" disabled>I agree — continue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1.3 Upload interstitial -->
+    <div id="uploadGateOverlay" class="safety-gate-overlay safety-gate-overlay-nested" hidden aria-hidden="true">
+        <div class="safety-gate-card" role="dialog" aria-labelledby="uploadGateTitle" aria-modal="true">
+            <p class="safety-gate-kicker">Before upload</p>
+            <h2 id="uploadGateTitle">Reference media rules</h2>
+            <p id="uploadGateLead" class="safety-gate-lead">
+                Before you add reference media, confirm the following:
+            </p>
+            <ul class="safety-check-list">
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="uploadCheckRights">
+                        <span>I have the rights (and any needed consent) to use these face/body references.</span>
+                    </label>
+                </li>
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="uploadCheckFiction">
+                        <span>These references are fictional and/or rights-cleared — not unauthorized photos of real people.</span>
+                    </label>
+                </li>
+                <li>
+                    <label class="safety-check">
+                        <input type="checkbox" id="uploadCheckAdult">
+                        <span>Every person depicted is 18 years of age or older.</span>
+                    </label>
+                </li>
+            </ul>
+            <div class="safety-gate-actions safety-gate-actions-split">
+                <button type="button" class="btn btn-ghost" id="btnUploadGateCancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btnUploadGateConfirm" disabled>Confirm &amp; upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core modules (order matters) — bump ?v= when caching bites -->
+    <script src="js/mirage-prompt.js?v=199"></script>
+    <script src="js/models.js?v=199"></script>
+    <script src="js/state.js?v=199"></script>
+    <script src="js/safety-gates.js?v=199"></script>
+    <script src="js/phone-ux.js?v=199"></script>
+    <script src="js/calendar.js?v=199"></script>
+    <script src="js/memory-ledger.js?v=199"></script>
+    <script src="js/routine.js?v=199"></script>
+    <script src="js/immersion.js?v=199"></script>
+    <script src="js/mock-api.js?v=199"></script>
+    <script src="js/kie-api.js?v=199"></script>
+    <script src="js/api.js?v=199"></script>
+    <script src="js/ui.js?v=199"></script>
+    <script src="js/image-store.js?v=199"></script>
+    <script src="js/media-library.js?v=199"></script>
+    <script src="js/anchor-store.js?v=199"></script>
+    <script src="js/chat-store.js?v=199"></script>
+    <script src="js/pending-turn.js?v=199"></script>
+    <script src="js/commands.js?v=199"></script>
+    <script src="js/errors.js?v=199"></script>
+    <script src="js/loyalty-ux.js?v=199"></script>
+    <script src="js/control-deck.js?v=199"></script>
+    <script src="js/command-autocomplete.js?v=199"></script>
+    <script src="js/debug-panel.js?v=199"></script>
+    <script src="js/profile-store.js?v=199"></script>
+    <script src="js/user-profile-store.js?v=199"></script>
+    <script src="js/user-profiles-ui.js?v=199"></script>
+    <script src="js/setup-media.js?v=199"></script>
+    <script src="js/setup-face.js?v=199"></script>
+    <script src="js/setup-profile.js?v=199"></script>
+    <script src="js/setup-protocol.js?v=199"></script>
+    <script src="js/simulation.js?v=199"></script>
+    <script src="js/chats-ui.js?v=199"></script>
+    <script src="js/characters-ui.js?v=199"></script>
+    <script src="js/app.js?v=199"></script>
+</body>
+</html>
