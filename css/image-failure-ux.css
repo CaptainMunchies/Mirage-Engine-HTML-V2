@@ -1,0 +1,90 @@
+/* ── Image failure recovery UX (grok/image-failure-ux) ── */
+.chat-alert-actions {
+    margin-top: 0.65rem;
+    width: 100%;
+}
+.chat-alert-hint {
+    margin: 0 0 0.5rem !important;
+    font-size: 0.74rem !important;
+    line-height: 1.4 !important;
+    color: #fecaca !important;
+    opacity: 0.95;
+}
+.chat-alert-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.chat-alert-btns .btn {
+    font-size: 0.72rem;
+    padding: 0.28rem 0.65rem;
+}
+.chat-alert-btns .btn-primary {
+    background: rgba(248, 113, 113, 0.25);
+    border-color: rgba(252, 165, 165, 0.65);
+    color: #fecaca;
+}
+.chat-alert-btns .btn-primary:hover:not(:disabled) {
+    background: rgba(248, 113, 113, 0.4);
+    filter: none;
+}
+.chat-alert-btns .btn-ghost {
+    border-color: rgba(252, 165, 165, 0.35);
+    color: #fca5a5;
+}
+.chat-alert-btns .btn:disabled {
+    opacity: 0.4;
+}
+
+.phone-card-failed {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.55rem;
+    justify-content: center;
+    align-items: center;
+    padding: 0.75rem 0.5rem !important;
+    color: #f87171 !important;
+    font-size: 0.72rem !important;
+    text-align: center;
+}
+.phone-card-fail-label {
+    font-size: 0.72rem;
+    color: #f87171;
+    text-align: center;
+}
+.phone-card-fail-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    width: min(100%, 9.5rem);
+}
+.phone-card-fail-actions .btn {
+    font-size: 0.68rem;
+    padding: 0.28rem 0.45rem;
+    width: 100%;
+}
+.phone-card-fail-actions .btn-primary {
+    background: rgba(248, 113, 113, 0.22);
+    border-color: rgba(248, 113, 113, 0.55);
+    color: #fecaca;
+}
+.phone-card-fail-actions .btn-ghost {
+    border-color: rgba(248, 113, 113, 0.3);
+    color: #fca5a5;
+}
+
+#btnRetryFace.is-attention,
+#btnRetryPrompt.is-attention {
+    border-color: rgba(248, 113, 113, 0.75) !important;
+    color: #fecaca !important;
+    box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35), 0 0 12px rgba(248, 113, 113, 0.25);
+    animation: image-fail-attention 1.1s ease-in-out 3;
+}
+@keyframes image-fail-attention {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.35), 0 0 8px rgba(248, 113, 113, 0.2); }
+    50% { box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.7), 0 0 16px rgba(248, 113, 113, 0.4); }
+}
+@media (prefers-reduced-motion: reduce) {
+    #btnRetryFace.is-attention,
+    #btnRetryPrompt.is-attention { animation: none; }
+}
