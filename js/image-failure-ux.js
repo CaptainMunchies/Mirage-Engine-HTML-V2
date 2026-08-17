@@ -8,9 +8,9 @@
 
     function escapeHtml(str) {
         return String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
+            .replace(/&/g, '&')
+            .replace(/</g, '<')
+            .replace(/>/g, '>');
     }
 
     function canRetryFace() {
@@ -92,7 +92,7 @@
             + `<button type="button" class="btn btn-sm btn-primary" data-image-fail-action="face"`
             + ` ${canRetryFace() ? '' : 'disabled'} title="Retry with Face Recovery">Face Recovery</button>`
             + `<button type="button" class="btn btn-sm btn-ghost" data-image-fail-action="prompt"`
-            + ` ${canPrompt ? '' : 'disabled'} title="Retry with same prompt">Same prompt</button>`
+            + ` ${canRetryPrompt() ? '' : 'disabled'} title="Retry with same prompt">Same prompt</button>`
             + `</div>`;
         bindActions(ph);
     }
