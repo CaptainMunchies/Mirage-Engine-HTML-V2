@@ -2,9 +2,10 @@
 
 *The consolidated plan: what gets fixed, what gets restructured, and the order to do it in.*
 
-Supersedes nothing — this sits on top of `docs/PRODUCT_REVIEW.md` (what's broken today) and
-`docs/REBUILD_BLUEPRINT.md` (the target architecture). Those remain the reference material. This is
-the decision record and the sequence.
+Supersedes nothing — this sits on top of `docs/PRODUCT_REVIEW.md` (what's broken today),
+`docs/REBUILD_BLUEPRINT.md` (the target architecture), and `docs/UI_DESIGN_DIRECTION.md` (the
+interface brief, summarised in §3 below). Those remain the reference material. This is the decision
+record and the sequence.
 
 **Target:** a private tool for one user. Not a public release. That decision removes a lot from scope
 and is worth stating up front, because it changes what "ready" means.
@@ -30,6 +31,7 @@ it's what stops v3 sprawling.
 | AI reports intent | Blueprint §3.5 | Deletes ~150 lines of brittle keyword matching |
 | The wall (engine ↔ UI boundary) | Blueprint §3.1 | Makes the UI overhaul safe to hand to an agent |
 | Component gallery | Conversation | Agent workspace + review surface |
+| UI overhaul — see §3 | UI brief | One thread instead of two; Immersion + Director modes; a large-screen layout the CSS has never had |
 | Event log — *diary structure only* | Blueprint §3.2 | Consistency, structure, real undo |
 | Split the waiting logic | Blueprint §3.4 | Skip Wait proves a wait *can* be skipped, not that its length was right — only the split makes that testable |
 | Types — gradual, contract first | Blueprint §5.1 | Guardrails where an agent is most likely to slip |
@@ -164,10 +166,10 @@ change how she behaves — the worst outcome is that it looks wrong.
 AI agent this is not optional — an agent will comply until it gets stuck, then quietly reach through.
 A convention in a document does not survive that; a failing check does.
 
-**The gallery.** One page rendering every UI state from fake data: image blocked, left on read, went
-quiet, storage full, credit guard fired, awakening stages, no face locked, proxy down, empty chat.
-Today, seeing those states means playing until you hit them and spending credits. This makes them one
-click each.
+**The gallery.** One page rendering every UI state from fake data — the full inventory is in §3, and
+it covers thread states, operator states, setup states, and each of those in both modes. Today,
+seeing states like "blocked by safety filter" or "credit guard fired" means playing until you hit
+them and spending credits. This makes them one click each.
 
 Its value is fourfold: design decisions get made looking at the whole product at once; the agent can
 verify its own work without playing or spending; rarely-seen states stop being the ugliest ones; and
@@ -180,7 +182,9 @@ listed above; the Phase 2 recording still passes unchanged.
 
 ### Phase 5 — UI overhaul · agent-driven
 
-The goal all of this was protecting.
+The goal all of this was protecting. **The design brief is §3** — the premise (it's the operator's
+phone), the one-thread unification, the two modes, the layout tiers, the live-state restructure and
+the setup previews. Phase 5 is the execution of that brief.
 
 **How to brief the agent:**
 - Point it at the gallery as its workspace.
@@ -250,7 +254,129 @@ the only place in the codebase where a timer exists; the behaviour recording is 
 
 ---
 
-## 3. Definition of done for v3
+## 3. UI direction — the brief for Phases 4 and 5
+
+Full detail in `docs/UI_DESIGN_DIRECTION.md`. The decisions and the load-bearing structure are
+recorded here because they define what Phase 4 builds and what Phase 5 aims at.
+
+### The premise
+
+**The phone on screen is the user's phone. Not hers.** You are holding your own device and texting
+her through it. The frame, status bar and home indicator are *your device*; the thread header —
+avatar, name, "online" — is *her*; her photos arrive in *your* thread; her Stories are something
+*you view*. The existing code already agrees (`phoneHeaderName` is her name, `phonePresence` is her
+status); the redesign makes it consistent.
+
+One consequence to resolve alongside the Phase 1 timezone fix: the bezel clock currently shows
+**her** timezone (`phone-ux.js:236-250`) on what is conceptually **your** device. If the phone is
+yours, your status bar shows your time, and her local time becomes conversational context — *last
+seen 3h ago · it's 6am there*. That gap between two clocks is content the current design discards.
+
+### Decisions
+
+| Question | Decision |
+|----------|----------|
+| Default posture | **Switchable** — Immersion and Director modes |
+| Wide screens | **Form + live preview** — the extra space does real work |
+| Hebrew / RTL | **Messages only** — bubbles handle RTL, chrome stays English/LTR |
+| Debug placement | **Inline**, below the deck — restructured, not relocated |
+
+### The core structural change: one thread
+
+The conversation currently exists **twice** — the phone has its own scrolling feed of images and
+captions, the chat log beside it has its own feed of text, commands and notices. They scroll
+independently and neither is complete alone.
+
+Unify into a single thread containing her messages, her photos inline, your messages, and Story
+cards. Everything else — typed commands, system notices, decisions, errors — becomes **operator
+annotation** living outside the fiction. This frees the entire second column and lets the phone grow
+to a size where the photo is finally the largest element on screen rather than a 320px thumbnail.
+
+**Errors leave the thread.** The safety-filter block currently renders inside the conversation as a
+large red panel with a wall of remediation text — an operator concern injected into the fiction, and
+the most immersion-breaking thing in the current UI. It becomes a compact dismissible banner outside
+the phone.
+
+### Two modes
+
+The toggle changes **the chrome around the thread, not the thread itself** — same components, same
+data, different surroundings. That constraint is what stops "switchable" becoming two half-designed
+interfaces.
+
+- **Immersion** — full-height phone, the unified thread, composer at its base. No metric strip, no
+  deck, no debug. Typing `/` still opens the full command autocomplete. Operator notices appear as
+  quiet toasts outside the phone frame.
+- **Director** — the phone stays large and gains rails: live state left, control deck and the
+  command reference right, operator log and debug below. All collapsible.
+
+Director mode also fixes a stranded feature: the command reference currently lives on the Standby
+screen, shown *before* you play and unavailable *while* you play.
+
+### The missing large-screen mode
+
+The stylesheet has **twelve media queries and not one `min-width`**. It knows how to shrink and has
+never been told what earns extra room, so on any large display it leaves it empty at any zoom.
+Panels are hard-capped at `640px` / `720px`, the phone at `320px` inside a `minmax(280px, 340px)`
+column — roughly **59% of the content area unused** on a 1920px screen, and the gap widens with the
+monitor because the console takes `1fr` while the phone never grows.
+
+| Tier | Width | Setup screens | Simulation |
+|------|-------|---------------|------------|
+| Compact | < 900px | Single column, full width | Phone full width, rails become sheets |
+| Standard | 900–1300 | Single column, wider measure | Phone + one rail |
+| Wide | 1300–1800 | **Two columns — form + preview** | Phone + both rails |
+| Full | > 1800px | Two columns, larger preview | Phone larger, rails comfortable |
+
+Cap the outer container near 1900–2000px so it doesn't sprawl on ultrawide. The rule: **extra space
+goes to the photo and the preview, never to margins.**
+
+### Live state
+
+Ten values currently sit in one line at identical weight, reading as a status bar. Restructure by
+**who owns each** — a distinction the engine already makes: operator-owned and absolute (persona,
+mode); model-evolved and clamped (arousal, tease, awareness, thermal, mood, engagement); scene
+(outfit, environment). Then add what's missing — **what changed this turn and why**, which the engine
+already computes and emits to the decision log. Pinned values need a visible chip with one-click
+release; today a pin looks identical to a model choice and expires silently.
+
+### Setup screens
+
+Two columns above 1300px — controls left, live preview right. Media Upload gets a large ingest grid;
+Profile gets her character card as she'll appear; Protocol previews the opening beat.
+
+**Face Lock is the biggest single win:** it currently renders all photos **twice on one page**, once
+for face and once for body. One grid with a face/body toggle, both locked references shown large in
+the preview, roughly halves that screen.
+
+### Debug restructure
+
+The DEV log turn cards are the best information design in the app and should be **promoted**, not
+replaced — reuse that pattern for the operator log. Fix the five raw dumps trapped in ~130px scroll
+boxes: give them real height or expand-to-full, group them behind one collapsed "Raw" section, keep
+the structured panels expanded, and add section navigation.
+
+### What the gallery must render
+
+This brief defines the Phase 4 gallery contents:
+
+- **Thread** — empty · first turn · text-only · with photo · Story · double text · reaction · left on
+  read · went quiet · typing-then-deleted · wait running · failed image · safety block · Hebrew,
+  English and mixed messages
+- **Operator** — pin active · pin expired · outfit lock held · shot rotated · awakening stages 1–4 ·
+  credit guard fired · clock resume · proxy down · storage full · no face locked
+- **Setup** — every step empty and populated · face/body locked or not · 0, 1, 19, 20 photos ·
+  saved / draft / editing
+- **Both modes** — every state above in Immersion *and* Director
+
+### Preserved
+
+The stepper (and its collapse to numbers on the sim screen), the Protocol cards, the phone chrome,
+the debug turn cards, the Standby reference content (relocated, not rewritten), and the deck's
+persona / thermal / directives taxonomy.
+
+---
+
+## 4. Definition of done for v3
 
 v3 ships when all of these are true:
 
@@ -262,7 +388,12 @@ v3 ships when all of these are true:
 - [ ] The reply format exists in exactly one place, and every response is checked
 - [ ] The keyword-matching intent module is deleted
 - [ ] UI code cannot reach through the wall — enforced automatically, not by convention
-- [ ] The gallery renders every UI state
+- [ ] The gallery renders every UI state listed in §3
+- [ ] The conversation exists once, not twice — photos and text in one thread
+- [ ] Errors and operator notices render outside the fiction, never inside the thread
+- [ ] Immersion and Director modes both work, sharing one thread and one component set
+- [ ] The layout uses the space on a wide monitor instead of capping at 640px
+- [ ] Her Hebrew messages render correctly right-to-left
 - [ ] The UI overhaul is complete with an unchanged behaviour recording
 - [ ] State is a fold over the event log; the manual snapshot is gone
 - [ ] The memory ledger keeps promises over trivia
@@ -274,7 +405,7 @@ previous one to be finished perfectly — only finished enough that its tests pa
 
 ---
 
-## 4. Parked for v3.1 and beyond
+## 5. Parked for v3.1 and beyond
 
 Not rejected. Sequenced.
 
@@ -291,7 +422,7 @@ polish, a demo character.
 
 ---
 
-## 5. Risks
+## 6. Risks
 
 | Risk | Mitigation |
 |------|------------|
@@ -301,5 +432,5 @@ polish, a demo character.
 | Prompt behaviour regresses during restructuring | The corpus is ported, never rewritten; the recording catches drift |
 | Gradual typing stalls half-done | That's an acceptable resting state by design — the contract is typed, which is where the value is |
 | The pacing split breaks delivery in subtle ways | It runs last, against a mature suite; the planner is pure and exhaustively covered before the scheduler replaces the old path |
-| Scope creep from the parked list | Nothing in §4 starts until §3 is fully checked off |
+| Scope creep from the parked list | Nothing in §5 starts until §4 is fully checked off |
 | Losing double-click-to-run | Explicit acceptance criterion, checked every phase |
