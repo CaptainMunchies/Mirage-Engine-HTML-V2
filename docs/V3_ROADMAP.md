@@ -65,28 +65,55 @@ Seven phases. Each ends with a working app. The ordering is not arbitrary — fo
 
 ---
 
-### Phase 1 — Critical fixes · ~3–4 days
+### Phase 1 — Critical fixes · ~4–5 days
 
-Everything here is a defect with a known fix and a known location.
+Everything here is a defect with a known fix and a known location. Finding IDs refer to
+`docs/PRODUCT_REVIEW.md`; §5 tracks every one of them to completion.
 
-| Fix | What breaks today |
-|-----|-------------------|
-| **Timezone matching** (`phone-ux.js:33-38`) | Dallas, Atlanta, Portland, Cleveland, Oakland, Milan, Iceland, Poland, Auckland, Adelaide, Lagos all silently run on Los Angeles time. Her clock, her routine, and every time-of-day cue are hours off. One line. |
-| **Immersion beats invisible** (`ui.js:88-92` + 10 call sites) | With Developer Mode off — the default — "left on read", "she went quiet", and "she was typing… then deleted it" are routed to a hidden debug panel. The refusal system looks like the app crashing. |
-| **Image timeout misreported** (`api.js:340`) | `return` where it should be `throw`. Every image timeout is reported as "no image came back", and the useful message is discarded. |
-| **Refusal check before parse** (`api.js:163`) | A valid reply containing in-character phrasing like "i'm unable to even" is misread as a provider refusal and can fail the turn. Parse first, check second. |
-| **Proxy SSRF** (`mirage_server.py:304`) | Any website open in the browser can use the local helper to read internal/localhost URLs and read the response back. Session token + host allowlist + drop the wildcard CORS. |
-| **Export / backup** | No recovery path exists. One `.mirage` bundle: character, chats, anchors, photo library. |
-| **Dead `fire` option in the wait code** (`immersion.js:332-336`) | `clearSkippableWallWait({ fire: true })` calls an `onFire` callback that neither producer ever stores, so it silently does nothing. Dormant today because no call site uses it — but it is precisely the kind of booby-trap an agent finds and starts using. Delete the parameter. |
+#### 1a — Defects that change behaviour
 
-Also worth taking while in here — each is minutes: the stale V1 architecture note in `index.html:88`
-(claims both models get the same prompt, which is the opposite of the truth), the 20-vs-30 photo
-mismatch, the impossible Grok/Seedream advice shown to Google users, and the deck's Change Outfit
-requiring an argument the typed command treats as optional.
+| ID | Fix | What breaks today |
+|----|-----|-------------------|
+| **B00** | **Timezone matching** (`phone-ux.js:33-38`) | Dallas, Atlanta, Portland, Cleveland, Oakland, Milan, Iceland, Poland, Auckland, Adelaide, Lagos all silently run on Los Angeles time. Her clock, her routine, and every time-of-day cue are hours off. One line. |
+| **B0** | **Immersion beats invisible** (`ui.js:88-92` + 10 call sites) | With Developer Mode off — the default — "left on read", "she went quiet", "she was typing… then deleted it" all route to a hidden debug panel. The refusal system looks like the app crashing. |
+| **B5b** | **Pinned metric vanishes silently** (`simulation.js:3633-3638`) | Same root cause as B0, distinct symptom: the ghost-hold branch returns *before* the command bubble is appended at `:3854`, so `/arousal 80` during a ditch hold changes a HUD number and produces no chat entry, no toast, and no hint the pin was deferred. |
+| **B1** | **Image timeout misreported** (`api.js:340`) | `return` where it should be `throw`. Every timeout is reported as "no image came back" and the useful message is discarded. |
+| **B2** | **Refusal check before parse** (`api.js:163`) | A valid reply containing in-character phrasing like "i'm unable to even" is misread as a provider refusal and can fail the turn. Parse first, check second. |
+| **B3** | **Cancel leaks shot-variance state** (`simulation.js:2264` vs `:46-95`) | `recordShotType` fires before image generation, but the checkpoint snapshots neither `shotHistory`, `lastShotType`, `goonLookHistory` nor `lastGoonCombo`. Cancelling leaves a phantom entry in the 3-deep avoid-list, distorting the next photo's framing. Add the four fields. *(Superseded by Phase 6, but that's ~10 weeks out and this misframes photos now.)* |
+| **B7** | **Input ceiling silently exceeded** (`mirage-prompt.js:3483-3510`) | `fitInputBudget` only ever trims history, never the system prompt. When the system prompt alone exceeds the budget, `roomChars` floors at 80 and the "Max thinking prompt per turn" setting quietly fails to cap anything. |
+| **S1** | **Proxy SSRF** (`mirage_server.py:304`) | Any website open in the browser can use the local helper to read internal/localhost URLs and read the response back. Session token + host allowlist + drop the wildcard CORS. |
+| **S2** | **API keys in URL query strings** (`api.js:357`, `:686`, `:695`) | Keys land in history, proxy logs and referrers. The image path already does this correctly with the `x-goog-api-key` header — match it. |
+| **D1** | **Export / backup** | No recovery path exists at all. One `.mirage` bundle: character, chats, anchors, photo library. |
+| **D3** | **Unhandled rejection on delete** (`profile-store.js:172-177`) | Two `async` cleanups wrapped in a *synchronous* `try/catch`, which cannot catch a promise rejection. A failed IndexedDB delete surfaces as an unhandled rejection instead of being swallowed. Use `.catch()` as the codebase does elsewhere. |
+| **B5** | **Launcher pins Python 3.11** | `py -3.11` dies instantly on any other version, then the browser opens a dead port with no error. Add fallbacks and fail loudly. |
+| **B8** | **`STOP MIRAGE` kills any process on 8080** | It `taskkill`s whoever owns the port without checking it's Mirage. |
 
-**Done when:** a character in Atlanta shows Atlanta time; a `ghost_type` turn visibly explains itself
-with Developer Mode off; a timeout says "timed out"; the proxy rejects an unknown host; a character
-can be exported and re-imported into a cleared browser.
+#### 1b — Cleanups, minutes each
+
+Small, zero-risk, and worth doing while the file is open — several are booby-traps an agent could
+find and start using.
+
+| ID | Cleanup |
+|----|---------|
+| **I2** | Stale V1 architecture note (`index.html:88`) claims the master prompt goes to **both** models — the opposite of the truth, and it's the first architectural claim a new user reads |
+| **I6** | Header still reads "Standalone · Google AI" (`index.html:15`) while the app runs on kie |
+| **I9** | "30-photo ingest limit" on Face Lock (`index.html:163`) vs "max 20" on Media Upload (`:106`) |
+| **B4** | `GOON_STACK_TIP` (`errors.js:7-10`) tells Google-provider users to select Grok and Seedream, which exist only in the kie registry. Branch the copy on the active provider |
+| **B6** | Unreachable branch — `errors.js:131` tests `empty response`, already caught at `:90` |
+| **I13** | Deck's Change Outfit requires an argument the typed command treats as optional, and empty submit bare-`return`s with no feedback (`control-deck.js:25`, `:184`) |
+| **I14** | `MirageSessionStore` (`chat-store.js:979`) — a legacy alias defined and referenced nowhere |
+| **I11** | 12 `@deprecated` shims across 8 modules kept "for stray callers" — verify no callers, delete |
+| **I15** | Two export conventions coexist: 27 modules use `global.X =`, 9 use `window.X =` inside the same IIFE. Pick one |
+| — | `clearPhoneFeed` (`simulation.js:1587`) wipes the feed without resetting `session.presence`, so any path clearing it mid-typing leaves the header stuck on "typing…" |
+| — | Dead `#phoneStatus` fallback branch (`phone-ux.js:237`, `:248`) for markup that no longer exists |
+| — | Weekday fallback (`phone-ux.js:262`) reads `now.getDay()` in the *browser's* timezone rather than hers, so it can name the wrong day |
+| — | `MirageMemoryLedger.resolve` (`memory-ledger.js:66-75`) matches on `includes()` with whatever string the model supplies — a generic `resolve` op can close the wrong item. Require an id or an exact match |
+| — | kie polling (`kie-api.js:10`, `:702`) uses a flat 2.5s interval with no backoff — up to ~120 proxied round-trips per image — and `console.log`s every poll |
+
+**Done when:** a character in Atlanta shows Atlanta time · a `ghost_type` turn visibly explains itself
+with Developer Mode off · a pin during a ghost hold says so · a timeout says "timed out" · the proxy
+rejects an unknown host and requires a token · no API key appears in a URL · a character survives a
+cleared browser · every row in 1b is gone.
 
 ---
 
@@ -136,6 +163,12 @@ field, retry with a specific note naming what was wrong — reusing the retry pa
 **Types on the contract.** This is where the gradual typing starts, because the reply format is the
 highest-traffic and most breakable surface in the app, and the place an agent is most likely to
 misspell something invisibly. Other files get typed only as they're touched.
+
+**Clean JSON in the example (B9).** The schema shown to the model contains `//` comment lines
+(`mirage-prompt.js:574-576`, `:710`) inside a structure introduced by *"Return ONLY valid JSON"*.
+Demonstrating comment syntax invites the model to echo it, which `JSON.parse` rejects and
+`extractJsonPayload`'s brace-matching won't rescue. The generated rendering emits clean JSON with the
+notes outside the code block.
 
 **AI reports intent.** Delete the ~150 lines of Hebrew/English keyword matching that guesses whether
 the user asked for an outfit change, a move, a mirror shot, or a close-up. Add an `interpretation`
@@ -405,7 +438,81 @@ previous one to be finished perfectly — only finished enough that its tests pa
 
 ---
 
-## 5. Parked for v3.1 and beyond
+## 5. Review coverage — every finding tracked
+
+Every finding from `docs/PRODUCT_REVIEW.md`, and where it lands. Nothing is silently dropped; items
+deliberately not being fixed say so and say why.
+
+| ID | Finding | Lands in |
+|----|---------|----------|
+| B00 | Timezone substring matching | **Phase 1a** |
+| B0 | Immersion beats routed to hidden debug lane | **Phase 1a** |
+| B5b | Pinned metric vanishes during a ghost hold | **Phase 1a** |
+| B1 | Image timeout misreported as "no image" | **Phase 1a** |
+| B2 | Refusal heuristic runs before JSON parse | **Phase 1a** |
+| B3 | Cancel leaks shot-variance state | **Phase 1a** (superseded by Phase 6) |
+| B4 | Error copy names models the provider lacks | **Phase 1b** |
+| B5 | Launcher pins Python 3.11 | **Phase 1a** |
+| B6 | Unreachable branch in `errors.js` | **Phase 1b** |
+| B7 | Input-token ceiling silently exceeded | **Phase 1a** |
+| B8 | `STOP MIRAGE` kills any process on 8080 | **Phase 1a** |
+| B9 | `//` comments in the JSON example shown to the model | **Phase 3** |
+| S1 | Proxy SSRF + wildcard CORS | **Phase 1a** |
+| S2 | API keys in URL query strings | **Phase 1a** |
+| D1 | No export, import or backup | **Phase 1a** |
+| D2 | Three separate IndexedDB databases, no migration path | **Parked** — see §6 |
+| D3 | Async cleanup in a synchronous `try/catch` | **Phase 1a** |
+| I2 | Stale V1 architecture note in the UI | **Phase 1b** |
+| I6 | Header reads "Google AI" while running on kie | **Phase 1b** (app copy only — README half is out of scope) |
+| I9 | 20-vs-30 photo limit mismatch | **Phase 1b** |
+| I10 | Turn schema exists in two drifting copies | **Phase 3** |
+| I11 | 12 `@deprecated` shims | **Phase 1b** |
+| I13 | Deck vs router disagree on Change Outfit | **Phase 1b** |
+| I14 | `MirageSessionStore` dead global | **Phase 1b** |
+| I15 | Two module-export conventions | **Phase 1b** |
+| — | `clearPhoneFeed` doesn't reset presence | **Phase 1b** |
+| — | Dead `#phoneStatus` fallback | **Phase 1b** |
+| — | Weekday fallback uses the browser's timezone | **Phase 1b** |
+| — | `resolve()` greedy substring match | **Phase 1b** |
+| — | kie polling: no backoff, logs every poll | **Phase 1b** |
+| — | No schema validation on the turn contract | **Phase 3** |
+| — | Client regex NLU duplicates the model's job | **Phase 3** |
+| — | Prompt corpus has no regression protection | **Phase 2** |
+| — | Memory ledger evicts by recency only | **Phase 6** |
+| I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
+
+**Also verified as *not* bugs**, so nobody re-investigates them: character deletion cleans up fully
+(`profile-store.js:168-178`); `#phoneTyping` is created on demand, not missing; there are no timer
+leaks; the troubleshoot report contains no API key; quota handling is real and wired to the
+storage-full modal.
+
+---
+
+## 6. Open decisions
+
+Things that need your call rather than a default. Listed so they don't get made by accident.
+
+**1 — The bezel clock.** The status bar currently shows *her* timezone on what is conceptually
+*your* device (§3). Recommendation is to split them, so your status bar shows your time and her
+local time becomes conversational context — *last seen 3h ago · it's 6am there*. Not yet confirmed,
+and it touches the Phase 1 timezone fix.
+
+**2 — The three modals.** Settings, Characters and Saved Chats were never screenshotted and are not
+covered by the UI brief. There's also no persistent sense of *which* chat you're in — thread
+switching lives behind a modal. Whether these are in scope for Phase 5 is undecided.
+
+**3 — The README.** You chose "list it in the report", which was right at the time. The argument has
+since changed: an AI agent doing Phase 5 will read the README, and it currently documents a persona
+that doesn't exist, a tease scale that means something else, and a Google-only app. Wrong docs
+actively mislead an agent. Worth revisiting on those grounds alone.
+
+**4 — Storage consolidation (D2).** Parked. But Phase 1 builds export/import, and designing that
+bundle against three separate databases versus one materially changes the work. If consolidation is
+ever happening, doing it *before* export is much cheaper than after.
+
+---
+
+## 7. Parked for v3.1 and beyond
 
 Not rejected. Sequenced.
 
@@ -422,7 +529,7 @@ polish, a demo character.
 
 ---
 
-## 6. Risks
+## 8. Risks
 
 | Risk | Mitigation |
 |------|------------|
@@ -432,5 +539,5 @@ polish, a demo character.
 | Prompt behaviour regresses during restructuring | The corpus is ported, never rewritten; the recording catches drift |
 | Gradual typing stalls half-done | That's an acceptable resting state by design — the contract is typed, which is where the value is |
 | The pacing split breaks delivery in subtle ways | It runs last, against a mature suite; the planner is pure and exhaustively covered before the scheduler replaces the old path |
-| Scope creep from the parked list | Nothing in §5 starts until §4 is fully checked off |
+| Scope creep from the parked list | Nothing in §7 starts until §4 is fully checked off |
 | Losing double-click-to-run | Explicit acceptance criterion, checked every phase |
