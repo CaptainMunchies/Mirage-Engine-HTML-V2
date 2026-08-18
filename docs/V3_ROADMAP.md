@@ -87,6 +87,7 @@ Everything here is a defect with a known fix and a known location. Finding IDs r
 | **D3** | **Unhandled rejection on delete** (`profile-store.js:172-177`) | Two `async` cleanups wrapped in a *synchronous* `try/catch`, which cannot catch a promise rejection. A failed IndexedDB delete surfaces as an unhandled rejection instead of being swallowed. Use `.catch()` as the codebase does elsewhere. |
 | **B5** | **Launcher pins Python 3.11** | `py -3.11` dies instantly on any other version, then the browser opens a dead port with no error. Add fallbacks and fail loudly. |
 | **B8** | **`STOP MIRAGE` kills any process on 8080** | It `taskkill`s whoever owns the port without checking it's Mirage. |
+| **N4** | **Legacy migration overwrites all chats** (`chat-store.js:44-88`) | `migrateLegacyOnce` builds a *fresh* `{ characters: {} }` from the legacy `mirage_v2_sessions` key and `writeStore`s it — discarding whatever `mirage_v2_chats` currently holds. It runs on **every** `readStore()`, and it is only safe because it deletes the legacy key afterwards. If that key ever reappears — a restored backup, a synced profile, a partial import — the very next read silently destroys every chat. **This matters specifically because Phase 1 builds import.** Make it merge, and gate it on the target being empty. |
 
 #### 1b — Cleanups, minutes each
 
@@ -109,6 +110,9 @@ find and start using.
 | — | **Three browser-local time fallbacks** that would silently compute *her* hour and weekday in the *operator's* timezone if ever reached: the weekday fallback (`phone-ux.js:262`), the routine clock fallback (`routine.js:55-62`), and the sim-date fallback (`calendar.js:687-694`). All three are dead today because `MirageCalendar.getSimDateParts` and `MiragePhoneUX.getZonedParts` are both exported — but a script that fails to load leaves the app running on a silently wrong clock rather than erroring. Same family as B00; delete the fallbacks or make them throw |
 | — | `MirageMemoryLedger.resolve` (`memory-ledger.js:66-75`) matches on `includes()` with whatever string the model supplies — a generic `resolve` op can close the wrong item. Require an id or an exact match |
 | — | kie polling (`kie-api.js:10`, `:702`) uses a flat 2.5s interval with no backoff — up to ~120 proxied round-trips per image — and `console.log`s every poll |
+| **N1** | **All three IndexedDB stores cache a rejected open** (`image-store.js:13-27`, `anchor-store.js:16-31`, `media-library.js:20-35`). `dbPromise` is assigned the promise before it settles, so if `indexedDB.open` ever fails — private-browsing mode, storage pressure, a corrupted profile — the rejected promise is cached for the rest of the session. Every later image save, anchor read and photo load fails permanently, with no retry short of a page reload. Null `dbPromise` in the error path |
+| **N2** | **No `onblocked` handler on any IDB open.** Harmless today because all three databases sit at version 1 — but the migration work this roadmap plans *requires* bumping a version, and at that point a second open tab blocks the upgrade, `openDb()` never settles, and every awaiting operation hangs silently with no error. Add the handler before the first migration, not after |
+| **N3** | **Destructive deletes sit behind a native `confirm()`** (`characters-ui.js:301`, `chats-ui.js:185`, `user-profiles-ui.js:154`, `setup-profile.js:359`). Deleting a character permanently destroys its chats, anchors and photo library, and until export ships in Phase 1 there is no recovery from a misclick. Also the only unstyled dialogs in an app that otherwise uses custom modals — fold into the Phase 5 overhaul |
 
 **Done when:** a character in Atlanta shows Atlanta time · a `ghost_type` turn visibly explains itself
 with Developer Mode off · a pin during a ghost hold says so · a timeout says "timed out" · the proxy
@@ -479,6 +483,10 @@ deliberately not being fixed say so and say why.
 | — | Client regex NLU duplicates the model's job | **Phase 3** |
 | — | Prompt corpus has no regression protection | **Phase 2** |
 | — | Memory ledger evicts by recency only | **Phase 6** |
+| N1 | All three IndexedDB stores cache a rejected open | **Phase 1b** |
+| N2 | No `onblocked` handler on IDB open — activated by the planned migration work | **Phase 1b** |
+| N3 | Destructive deletes behind a native `confirm()`, no undo, no backup yet | **Phase 1b** + Phase 5 |
+| N4 | **Legacy chat migration overwrites instead of merging** — see below | **Phase 1a** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
 
 **Also verified as *not* bugs**, so nobody re-investigates them: character deletion cleans up fully
@@ -541,7 +549,154 @@ polish, a demo character.
 
 ---
 
-## 8. Risks
+## 8. Future ideas — beyond v3
+
+All out of scope for v3. Recorded here so the thinking isn't lost, ranked easiest to hardest, with
+what each actually requires and where the vision needs pinning down before anyone builds it.
+
+**Ranking is by implementation difficulty, not value.** Several of the easiest are among the most
+valuable — the engine is well-factored in exactly the places these ideas touch.
+
+| # | Idea | Difficulty | Why |
+|---|------|-----------|-----|
+| 1 | **10** · Random invented outfit (~20–30%) | **Trivial** | A coin flip in `applyOutfitChangeRequest`; `formatOutfitLibraryHint` already handles library-vs-invent |
+| 2 | **13** · New shot types | **Easy** | `SHOT_TYPES` / `CROP_TYPES` are plain arrays; `goonFrame` is the precedent for a richer vocabulary |
+| 3 | **9** · "Let AI decide your response" | **Easy** | One extra thinking call written as the operator; the operator profile already exists |
+| 4 | **5** · TTS for chat messages | **Easy–Medium** | Browser `SpeechSynthesis` is free and instant; an API is needed only if Hebrew quality matters |
+| 5 | **14/15** · Expressive, "knowing" faces | **Easy to build, hard to perfect** | Zero infrastructure — pure render vocabulary. All the cost is iteration |
+| 6 | **12** · Queen persona | **Low–Medium** | Persona system is well-factored; needs its own frame vocabulary like Goon has |
+| 7 | **11** · Comedian persona | **Low–Medium** | Same, plus an optional joke corpus that may not be needed at all |
+| 8 | **1** · News access | **Medium** | RSS + cache + a relevance filter + a proxy route |
+| 9 | **2** · Phone UI | **Medium–High** | Much cheaper after v3's wall — but needs a reachable server (see 4) |
+| 10 | **6** · Voice clone + voice notes | **High** | API is easy; the setup step, storage, consent and cost control are the work |
+| 11 | **7** · Video generation | **High** | Cost and latency, and face consistency across motion is the weakest part of current models |
+| 12 | **8** · Messenger bot | **High** | Needs a server, and platform content policy is the real blocker |
+| 13 | **4** · Stripe credits + app server | **Hardest** | Not a feature — a different product with a different risk profile |
+
+> **Idea 3 (PC UI overhaul) isn't listed** — it's already v3 Phase 5, briefed in §3.
+
+### The easy tier
+
+**10 · Random invented outfit.** On `/change outfit`, sometimes ignore the library and invent.
+*Unspecified:* should the chance be tunable? Should an invented look be constrained by her established
+style, season and place, or genuinely free — an unanchored invention can drift off-character. And
+**should an invented outfit be remembered** and added to the library so it can recur? Without that she
+wears something once and never again, which is exactly the kind of small unrealism this engine
+otherwise works hard to avoid.
+
+**13 · New shot types** — body-only with lower face, body in mirror, POV from her eyes looking down
+with body in frame. *Unspecified:* are these new **shotTypes** or new **crops**? "POV looking down
+including body" is close to the existing POV shotType with a Torso/Full crop, so it may only need
+better direction rather than a new enum value. Worth deciding deliberately, because there are only
+four shot types today and adding more changes how the variance rotation behaves — more types means
+better variance, which is a real side benefit.
+
+**9 · "Let AI decide your response."** One thinking call that writes as the operator, using the
+operator profile and recent history. *Unspecified:* does it **send immediately or fill the box for
+editing**? Editing is safer and probably more fun. Should it use a cheaper model? And the stronger
+product is likely **two or three options to pick from** rather than one auto-send — same call, much
+better feel.
+
+**5 · TTS.** *Genuinely ambiguous as written* — "TTS for user-side chat messages" reads either as
+*speak her messages, on the client* or *speak the user's own messages*, which is unusual. Assuming
+the former: browser `SpeechSynthesis` is free, instant, and needs no server, but its **Hebrew voices
+are poor**, so Hebrew probably forces an API and a per-message cost. *Also unspecified:* autoplay or
+tap-to-play, and whether the voice is per-character.
+
+**14/15 · Expressive, knowing faces.** The most interesting idea on the list, and the cheapest to
+attempt. The insight is right: a face has dozens of muscles and real expressions aren't "sad" or
+"angry" — they carry layered intent, and that's what makes the reference images land.
+
+Operationally this is *pure render vocabulary*. The contract already has an `expression` field and
+`RENDER_DOCTRINE` already mandates readable affect; what's missing is the language. Image models
+respond well to **muscle-level specifics** — asymmetric lip corner, lowered upper lids, direct eye
+contact held a beat too long, brow micro-position — and badly to abstract emotional labels. So the
+work is a curated expression vocabulary, most likely a mapping layer that expands a simple label the
+thinking model picks into muscle-level direction for the renderer.
+
+*Unspecified, and it matters:* does the **thinking** model choose the nuance, or does the **render**
+side expand a simple label? The second is more reliable — the thinking model is already carrying a
+lot, and a mapping table is tunable in one place. Is SOTA capable? Largely yes, via that vocabulary;
+it will not come from asking for "a knowing look."
+
+### The persona tier
+
+**12 · Queen.** Elegance and power; pose, styling and psychology all regal. The persona system takes
+this cleanly — a `PERSONA_BEHAVIORS` entry plus a persona-specific frame vocabulary, exactly the
+pattern `goonFace`/`goonFrame` already establishes.
+
+*Unspecified, and these produce very different characters:* is the power **psychological** (dismissive,
+commanding, you are beneath her) or **aesthetic** (composed, untouchable, elevated)? The reference
+images read as controlled elegance rather than cruelty. Also: does Queen change how the metrics
+behave — does she refuse more, does engagement mean something different — or is she purely a
+speech-and-image overlay like the others?
+
+**11 · Comedian.** *Question the premise:* the "huge database of jokes" is probably unnecessary — the
+model already knows jokes. A corpus earns its place only for **Hebrew humour and local references**
+the model handles poorly. Also worth defining what funny means here: witty banter, bits, self-aware
+riffing? A persona that *delivers jokes* gets tiring fast; one that is *situationally* funny is much
+better and is a prompt problem, not a database problem.
+
+### The infrastructure tier
+
+**1 · News access.** RSS is free and simple; a news API is easy but keyed; scraping is fragile.
+Route through the local proxy for CORS, cache aggressively, and budget the tokens.
+
+*Unspecified, and it's the whole design:* **how does she come to know?** Does she "see" news the way a
+person does — scrolling her feed, so it arrives with her mood and her opinions attached — or is it
+ambient knowledge she can be asked about? Those are very different characters. Also: a relevance
+filter matters more than the feed, because she should mention what *this* character would actually
+mention, not recite headlines. And should news move her **mood**? Something happening in her city
+plausibly should.
+
+**2 · Phone UI.** Much cheaper once v3's wall exists — it becomes a second UI over the same engine
+rather than a rewrite. *The real blocker isn't UI:* the engine is local-first behind a `localhost`
+Python proxy, and a phone can't reach that unless it's on the same network or the app moves to a
+server. **This idea quietly depends on idea 4.** Worth confronting early. *Also unspecified:* same
+app made responsive, or a separate build? Does it install as a PWA?
+
+**6 · Voice clone + voice notes.** The API call is the easy part. The work is a new setup step for the
+reference sample, audio blob storage, a player in the thread, and per-generation cost. Hebrew is the
+real constraint — fewer providers do it well.
+
+*Unspecified:* where does the reference voice come from? Uploading a real person's voice raises the
+same consent question the face already has, so the upload gate would need extending — worth deciding
+before building, not after. And a genuinely interesting product question: **does she speak her written
+message verbatim, or does the model write a separate spoken line?** Real people phrase voice notes
+completely differently from texts, and the second option is far more convincing.
+
+**7 · Video generation.** Several video models are reachable through the existing provider layer. The
+blocker is not the API — it's that **face consistency across motion is the weakest part of current
+models**, and face lock is this product's founding promise. A video that drifts off her face damages
+the illusion more than no video at all.
+
+*Unspecified:* what is the video *for* — a Story clip, a reply, a voice note with picture? How long?
+Does it replace the still or sit alongside it? Recommend prototyping identity fidelity **before**
+committing any product design to it.
+
+**8 · Messenger bot.** Telegram is the only realistic starting point: free Bot API, trivial webhooks.
+WhatsApp needs the Business API, Meta approval and per-message fees; Messenger needs a Page and app
+review. All three require a publicly reachable server.
+
+*The blocker worth stating plainly:* **all three platforms have content policies this app's output
+would violate**, and enforcement is account-level. This isn't a technical risk, it's a "the account
+gets banned" risk, and it should be weighed before any engineering. *Also unspecified:* does the bot
+replace the web UI or mirror it, and does state sync both ways?
+
+**4 · Stripe credits + app server.** Ranked hardest because it isn't a feature — it's a different
+product. It needs accounts, auth, payments, a server-side key vault, usage metering, fraud handling,
+refunds, terms, and real age verification.
+
+*Two things worth confronting before this is ever scheduled.* First, **it inverts the local-first
+principle** in §1 of this roadmap — user data and keys move to a server, and the privacy posture
+flips. That may be the right trade, but it should be a conscious one rather than a consequence.
+Second, and more practically: **if you hold the provider API keys, the provider's content policy
+applies to you, not to your users.** For this content category that is a material risk and it is the
+single biggest reason to think hard before going down this road.
+
+---
+
+## 9. Risks
 
 | Risk | Mitigation |
 |------|------------|
@@ -551,5 +706,5 @@ polish, a demo character.
 | Prompt behaviour regresses during restructuring | The corpus is ported, never rewritten; the recording catches drift |
 | Gradual typing stalls half-done | That's an acceptable resting state by design — the contract is typed, which is where the value is |
 | The pacing split breaks delivery in subtle ways | It runs last, against a mature suite; the planner is pure and exhaustively covered before the scheduler replaces the old path |
-| Scope creep from the parked list | Nothing in §7 starts until §4 is fully checked off |
+| Scope creep from the parked list | Nothing in §7 or §8 starts until §4 is fully checked off |
 | Losing double-click-to-run | Explicit acceptance criterion, checked every phase |
