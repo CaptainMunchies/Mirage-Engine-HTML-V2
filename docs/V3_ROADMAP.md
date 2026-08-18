@@ -106,7 +106,7 @@ find and start using.
 | **I15** | Two export conventions coexist: 27 modules use `global.X =`, 9 use `window.X =` inside the same IIFE. Pick one |
 | — | `clearPhoneFeed` (`simulation.js:1587`) wipes the feed without resetting `session.presence`, so any path clearing it mid-typing leaves the header stuck on "typing…" |
 | — | Dead `#phoneStatus` fallback branch (`phone-ux.js:237`, `:248`) for markup that no longer exists |
-| — | Weekday fallback (`phone-ux.js:262`) reads `now.getDay()` in the *browser's* timezone rather than hers, so it can name the wrong day |
+| — | **Three browser-local time fallbacks** that would silently compute *her* hour and weekday in the *operator's* timezone if ever reached: the weekday fallback (`phone-ux.js:262`), the routine clock fallback (`routine.js:55-62`), and the sim-date fallback (`calendar.js:687-694`). All three are dead today because `MirageCalendar.getSimDateParts` and `MiragePhoneUX.getZonedParts` are both exported — but a script that fails to load leaves the app running on a silently wrong clock rather than erroring. Same family as B00; delete the fallbacks or make them throw |
 | — | `MirageMemoryLedger.resolve` (`memory-ledger.js:66-75`) matches on `includes()` with whatever string the model supplies — a generic `resolve` op can close the wrong item. Require an id or an exact match |
 | — | kie polling (`kie-api.js:10`, `:702`) uses a flat 2.5s interval with no backoff — up to ~120 proxied round-trips per image — and `console.log`s every poll |
 
@@ -509,6 +509,18 @@ actively mislead an agent. Worth revisiting on those grounds alone.
 **4 — Storage consolidation (D2).** Parked. But Phase 1 builds export/import, and designing that
 bundle against three separate databases versus one materially changes the work. If consolidation is
 ever happening, doing it *before* export is much cheaper than after.
+
+**5 — The app phones two third parties.** `calendar.js:570` and `:579` fetch the holiday catalogue
+from **`www.hebcal.com`** and **`date.nager.at`** directly from the browser, on boot, outside the
+local proxy. The hebcal call sends `geo=none`, but the nager call includes a **country code derived
+from her profile location**. Those are the only two outbound hosts in the app that have nothing to do
+with an AI provider.
+
+It isn't a bug — it degrades correctly offline (abort timeout, caught in `app.js`) — but it's an
+undocumented fact about an app whose premise is local-first with no cloud, and given the subject
+matter any outbound request deserves a deliberate decision rather than a default. Options: bundle a
+static holiday table offline, make the fetch opt-in, route it through the local proxy, or accept it
+knowingly.
 
 ---
 
