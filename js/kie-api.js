@@ -7,8 +7,26 @@
     'use strict';
 
     const PROXY_PORT = 8080;
-    const POLL_MS = 2500;
     const DEFAULT_TIMEOUT_MS = 300000;
+
+    /**
+     * Poll backoff. A flat 2.5s meant up to ~120 proxied round-trips per image, all of
+     * them pointless for the first minute of a generation that typically takes longer
+     * than that. Stay responsive early — a fast model can finish in seconds — then ease
+     * off, capping at 10s so a finished job is still noticed promptly.
+     */
+    const POLL_START_MS = 1500;
+    const POLL_MAX_MS = 10000;
+    const POLL_GROWTH = 1.35;
+
+    function nextPollDelay(current) {
+        return Math.min(POLL_MAX_MS, Math.round((current || POLL_START_MS) * POLL_GROWTH));
+    }
+
+    /** Poll chatter is useful when a generation misbehaves and noise otherwise. */
+    function pollLog(...args) {
+        if (global.EngineState?.developerMode) console.log(...args);
+    }
 
     const ASPECT_FALLBACKS = {
         '1:1': '1:1',
@@ -625,6 +643,8 @@
 
     async function pollFluxKontextTask(apiKey, taskId, { timeoutMs, signal } = {}) {
         const deadline = Date.now() + (timeoutMs || DEFAULT_TIMEOUT_MS);
+        let delay = POLL_START_MS;
+        let lastFlag;
         while (Date.now() < deadline) {
             if (signal?.aborted) {
                 const err = new Error('Cancelled');
@@ -640,13 +660,17 @@
                 throw new Error(formatKieError(data, 'kie Flux Kontext status', res.status));
             }
             const flag = data?.data?.successFlag;
-            console.log('[Mirage kie] flux-kontext state', taskId, flag);
+            if (flag !== lastFlag) {
+                pollLog('[Mirage kie] flux-kontext state', taskId, flag);
+                lastFlag = flag;
+            }
             if (flag === 1) return data.data;
             if (flag === 2 || flag === 3) {
                 const failMsg = data?.data?.errorMessage || data?.data?.errorCode || data?.msg || 'unknown';
                 throw new Error(`kie Flux Kontext failed: ${failMsg}`);
             }
-            await sleep(POLL_MS, signal);
+            await sleep(delay, signal);
+            delay = nextPollDelay(delay);
         }
         throw new Error('kie Flux Kontext timed out waiting for task completion');
     }
@@ -694,6 +718,8 @@
 
     async function pollTask(apiKey, taskId, { timeoutMs, signal } = {}) {
         const deadline = Date.now() + (timeoutMs || DEFAULT_TIMEOUT_MS);
+        let delay = POLL_START_MS;
+        let lastState;
         while (Date.now() < deadline) {
             if (signal?.aborted) {
                 const err = new Error('Cancelled');
@@ -709,14 +735,19 @@
                 throw new Error(formatKieError(data, 'kie task status', res.status));
             }
             const state = data?.data?.state;
-            if (state) console.log('[Mirage kie] task state', taskId, state);
+            // Only on change — this used to print on every one of ~120 polls.
+            if (state && state !== lastState) {
+                pollLog('[Mirage kie] task state', taskId, state);
+                lastState = state;
+            }
             if (state === 'success') return data.data;
             if (state === 'fail') {
                 const failMsg = data?.data?.failMsg || data?.data?.failCode || data?.msg || 'unknown';
                 console.error('[Mirage kie] task failed', data?.data);
                 throw new Error(`kie image failed: ${failMsg}`);
             }
-            await sleep(POLL_MS, signal);
+            await sleep(delay, signal);
+            delay = nextPollDelay(delay);
         }
         throw new Error('kie image timed out waiting for task completion');
     }
