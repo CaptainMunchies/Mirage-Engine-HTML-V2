@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirage Engine — Test Runner</title>
+<link rel="stylesheet" href="runner.css">
+</head>
+<body>
+
+<header class="bar">
+    <div class="bar-title">
+        <h1>Test Runner</h1>
+        <span class="origin" id="originLabel"></span>
+    </div>
+    <div class="bar-actions">
+        <button id="btnRunAll" class="btn btn-primary">Run all</button>
+        <button id="btnRunSmoke" class="btn">Smoke only</button>
+        <button id="btnRunFailure" class="btn">Failure only</button>
+        <button id="btnRerunFailed" class="btn" disabled>Re-run failed</button>
+        <button id="btnCancel" class="btn btn-quiet" hidden>Stop</button>
+    </div>
+</header>
+
+<div id="originWarning" class="warning" hidden>
+    <strong>Refusing to run.</strong>
+    <span id="originWarningText"></span>
+</div>
+
+<section class="summary" id="summary" hidden>
+    <div class="counts">
+        <span class="pill pill-pass"><b id="cPass">0</b> passed</span>
+        <span class="pill pill-fail"><b id="cFail">0</b> failed</span>
+        <span class="pill pill-red"><b id="cRed">0</b> known-red</span>
+        <span class="pill pill-fixed" id="pillFixed" hidden><b id="cFixed">0</b> newly fixed</span>
+        <span class="meta" id="cMeta"></span>
+    </div>
+    <div class="summary-actions">
+        <label class="toggle"><input type="checkbox" id="onlyProblems"> Only show problems</label>
+        <button id="btnCopy" class="btn btn-small">Copy report</button>
+        <button id="btnDownload" class="btn btn-small">Download .txt</button>
+        <button id="btnDownloadJson" class="btn btn-small">Download .json</button>
+    </div>
+</section>
+
+<div class="progress" id="progressWrap" hidden>
+    <div class="progress-bar" id="progressBar"></div>
+    <div class="progress-label" id="progressLabel"></div>
+</div>
+
+<main>
+    <section class="results-pane">
+        <div id="results" class="results"></div>
+        <p class="empty" id="emptyState">
+            Nothing has run yet. <strong>Run all</strong> takes about a minute and needs no API key —
+            mock mode supplies both the thinking and the image halves.
+        </p>
+    </section>
+
+    <aside class="sandbox-pane" id="sandboxPane">
+        <div class="sandbox-head">
+            <span>Sandbox</span>
+            <button id="btnToggleSandbox" class="btn btn-small btn-quiet">Hide</button>
+        </div>
+        <p class="sandbox-note">
+            A throwaway copy of the app on <code id="sandboxOrigin"></code>.
+            Your real characters and chats live on the other alias — a different storage
+            origin the browser will not let this page reach.
+        </p>
+        <div id="sandboxHost" class="sandbox-host"></div>
+    </aside>
+</main>
+
+<footer class="foot">
+    <span>Layer 2 (behaviour baselines) is terminal-only — it reads and writes files on disk.
+    Run it with <code>node tests/run.js record</code>.</span>
+</footer>
+
+<script src="../suites/harness.js"></script>
+<script src="../suites/smoke.js"></script>
+<script src="../suites/failure.js"></script>
+<script src="engine.js"></script>
+<script src="runner.js"></script>
+</body>
+</html>

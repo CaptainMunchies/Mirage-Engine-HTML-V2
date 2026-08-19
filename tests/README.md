@@ -7,15 +7,36 @@ Everything runs with **no API key and no credits** — mock mode supplies the th
 and image halves, and the real `mirage_server.py` serves the app so the proxy,
 IndexedDB and module load order are all exercised for real.
 
-## First-time setup
+## Two ways to run them
 
-The app needs only Python. **The tests also need Node.js** — that is the one new
-prerequisite. Install it from <https://nodejs.org> (any current LTS) if you don't
-have it, then:
+### 1. The button (no setup at all)
+
+**Settings → Developer → Developer Mode → Open test runner…**
+
+That opens a separate window with a Run all button, live pass/fail, expandable
+failure detail, and Copy report / Download .txt / Download .json. Nothing to
+install — it is just the app's own server serving another page.
+
+Covers Layers 1 and 3. Layer 2 is terminal-only (see below).
+
+**Why it cannot hurt your library.** `localhost:8080` and `127.0.0.1:8080` are the
+same server but *different storage origins* — a key written at one reads back as
+`null` at the other, which was checked rather than assumed. The runner window opens
+on whichever alias you are **not** browsing with, and the app under test runs in an
+iframe beside it on that same alias. Wiping the sandbox between tests therefore
+cannot reach your characters, chats or photos: they are on the other side of a
+boundary the browser enforces. If the runner ever does land on your origin it
+refuses to run and says so instead.
+
+### 2. The terminal
+
+The app needs only Python. **The terminal runner also needs Node.js** — that is the
+one extra prerequisite, and only for this path. Install it from <https://nodejs.org>
+(any current LTS), then:
 
 ```
 cd tests
-npm install                    # Playwright
+npm install                       # Playwright
 npx playwright install chromium   # the browser it drives (~150 MB, once)
 ```
 
@@ -23,13 +44,12 @@ On Windows use the same commands in Command Prompt or PowerShell from the repo
 folder. Python is found automatically (`py -3`, `python`, `python3` — whichever
 answers first), and so is Chromium.
 
-## Running
-
 ```
 node run.js smoke            # Layer 1 — ~30s, the one to run constantly
 node run.js record           # Layer 2 — compare against the committed baselines
 node run.js record --update  # Layer 2 — re-record (deliberate act; read the diff)
 node run.js failure          # Layer 3 — failure and edge cases
+node run.js nodeonly         # the few that need a driver outside the page
 node run.js all              # everything, ~4 minutes
 ```
 
@@ -43,15 +63,26 @@ Layer 3 test does not fail the run.
 What a healthy run ends with:
 
 ```
-TOTAL: 44 passed, 3 known-red  (47 total)
+TOTAL: 47 passed, 3 known-red  (50 total)
 ```
+
+### One definition, two runners
+
+Layers 1 and 3 live in `suites/` as plain browser code. **Both** runners execute
+them, and both do it by loading `ui/runner.html` — the button opens that page, and
+the CLI opens the same page in Playwright and relays the results to the terminal.
+`layer-browser.js` contains no assertions at all; it is a relay.
+
+So a test cannot pass in one and fail in the other, and neither can quietly fall
+behind. Adding a test means editing one file in `suites/` and nothing else.
 
 ---
 
 ## Layer 1 — Smoke
 
-Boots, loads a character, runs a turn, saves, reloads, restores. The spine and
-nothing clever: if this is red the app is broken, not subtly wrong.
+Boots, loads a character, runs a turn, saves, reloads, restores, and round-trips a
+backup. The spine and nothing clever: if this is red the app is broken, not subtly
+wrong.
 
 It also asserts the **prompt split** directly — markers planted in the dossier and
 the transcript must not appear in the image prompt. `app.js` has
@@ -76,6 +107,11 @@ capture is written next to the baseline as `<scenario>.actual.json`.
 
 If the change was intended, re-record with `--update` and **read the diff before
 committing it**. That is the only thing keeping this layer honest.
+
+**This layer is terminal-only, and stays that way.** It reads and writes baseline
+files on disk and its whole workflow is the `--update` diff. A browser cannot do
+either. The runner window says so rather than pretending the button covers
+everything.
 
 ### Determinism
 
@@ -108,25 +144,40 @@ Currently red:
 | the model cannot change mode | `applyTracking` ignores `tracking.mode` as client-owned, then `simulation.js:4374` honours it anyway (N19) | Phase 3 |
 | a promise survives ledger overflow | the ledger evicts by recency only, so trivia pushes out an open promise (the callback picker ranks by kind; eviction does not) | Phase 6 |
 
+## Node-only
+
+Two tests need a driver outside the page and cannot be written as shared suites:
+reading back a backup file the browser actually downloaded, and booting from a
+genuinely cold browser profile rather than a wiped origin. Deliberately kept to
+that — anything expressible as a shared suite belongs in `suites/`.
+
 ---
 
 ## Layout
 
 ```
+suites/harness.js     the shared harness: assertions + the sandbox context
+suites/smoke.js       Layer 1, plain browser code
+suites/failure.js     Layer 3, plain browser code
+ui/runner.html        the runner window — and what the CLI drives too
+ui/engine.js          sandbox lifecycle + execution + report building
+ui/runner.js          the window's buttons and rendering
+layer-browser.js      relays a runner-page run to the terminal (no assertions)
+layer2-record.js      Layer 2 — terminal-only
+layer-nodeonly.js     the two tests that need a driver outside the page
 lib/server.js         start/stop mirage_server.py (reuses one already running)
-lib/browser.js        launch Chromium, boot past the safety gates, seed a character,
-                      run turns, stub the model's replies
+lib/browser.js        launch Chromium, boot past the safety gates, seed, run turns
 lib/determinism.js    seeded PRNG + fake clock + recording normalization
 lib/recorder.js       in-page instrumentation for Layer 2
 lib/report.js         assertions, expectedRed, summaries
 baselines/            committed Layer 2 captures
 ```
 
-`lib/browser.js` filters the holiday-catalogue network failures out of error
-capture — those are environmental (no outbound DNS in some environments), not
+Holiday-catalogue network failures are filtered out of error capture in both
+runners — those are environmental (no outbound DNS in some environments), not
 regressions.
 
-## Three bugs these tests found
+## Bugs these tests found
 
 Worth recording, because it is the argument for the layer split:
 
@@ -139,3 +190,11 @@ Worth recording, because it is the argument for the layer split:
 - **N20** — `saveActiveChat` is `async`, and seven call sites wrapped it in a
   *synchronous* `try/catch`, which cannot catch a rejection. A full disk meant turns
   silently stopped persisting and the storage-full dialog was unreachable.
+
+And one bug in the tests themselves, worth the same treatment: the original harness
+waited on `isTurnInProgress()` — the *hard* busy flag — then slept a flat 80ms.
+That flag goes false while the delivery choreography is still typing her reply into
+the thread, so under load an assertion could read an empty history and fail a
+perfectly good engine. The shared harness waits on `isEngineBusy()` (which covers
+choreography, holds and wall waits) and then requires two consecutive quiet samples.
+A flaky test is worse than a red one.

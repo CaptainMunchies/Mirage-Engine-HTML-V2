@@ -201,13 +201,28 @@ again after a skip · every row in 1b is gone.
 ### Phase 2 — Test foundation · ~1–1.5 weeks
 
 > **Status: done.** Lives in `tests/`, with its own `package.json` so the app stays no-build.
-> `node run.js smoke | record | failure | all`. 47 tests: 9 smoke, 4 recorded scenarios,
-> 34 failure cases — 44 green and 3 known-red, each naming the phase that closes it. Everything
-> runs with no API key and no credits. `tests/README.md` carries the operating instructions.
+> 50 tests: 10 smoke, 4 recorded scenarios, 34 failure cases, 2 node-only — 47 green and
+> 3 known-red, each naming the phase that closes it. Everything runs with no API key and no
+> credits. `tests/README.md` carries the operating instructions.
 >
 > Building it found three defects that reading had not: **N18** (server restart refused for a
 > full minute), **N19** (the model can override operator-owned mode) and **N20** (a full disk
 > silently stopped saving turns). N18 and N20 are fixed; N19 is one of the known-red tests.
+>
+> **Two ways to fire it.** *Settings → Developer → Open test runner…* opens a runner window with
+> a Run all button, live results, expandable failures and copy/download report — no Node, no
+> install. `node run.js smoke | record | failure | nodeonly | all` does the same from a terminal,
+> plus Layer 2, which stays terminal-only because it reads and writes baseline files on disk.
+>
+> Layers 1 and 3 are defined **once**, in `tests/suites/`, as plain browser code, and both
+> runners execute them through the same `tests/ui/runner.html`. `layer-browser.js` contains no
+> assertions — it is a relay. The button and the terminal cannot drift apart.
+>
+> **Why the runner cannot touch your library.** `localhost:8080` and `127.0.0.1:8080` are the
+> same server but different storage origins — verified empirically, not assumed. The runner opens
+> on whichever alias you are not browsing with and drives a sandbox iframe beside it, so wiping
+> the sandbox between tests is unreachable from your real characters, chats and photos. If it
+> ever lands on your own origin it refuses to run.
 
 Three distinct layers. Briefed as three, not one — a single "extensive test suite" instruction
 produces one sprawling brittle file.
@@ -242,6 +257,15 @@ not know it is being observed, because a test hook inside the engine is one more
 drift from what ships. And Layer 2's value depends entirely on reading the diff before running
 `--update` — a baseline re-recorded without looking is worse than no baseline, because it
 converts a caught regression into a committed one.
+
+A third note, added when the suite moved into the app. The original harness waited on
+`isTurnInProgress()` — the *hard* busy flag — and then slept a flat 80ms. That flag goes false
+while the delivery choreography is still typing her reply into the thread, so the wait was a race
+the tests happened to keep winning while each one had a browser page to itself. Running them
+back to back in one window lost it, and a good engine failed a good test. The shared harness waits
+on `isEngineBusy()` — which covers choreography, pending holds and wall waits — then requires two
+consecutive quiet samples. Worth stating because a flaky test is worse than a red one: a red test
+tells you something; a flaky one teaches you to ignore the suite.
 
 ---
 

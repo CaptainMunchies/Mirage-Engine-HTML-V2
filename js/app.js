@@ -97,6 +97,7 @@
         const sceneContinuityCheck = document.getElementById('checkSceneContinuityRef');
         const maxReplyCharsSelect = document.getElementById('selectMaxReplyChars');
         const maxThinkingInputSelect = document.getElementById('selectMaxThinkingInput');
+        const testRunnerBtn = document.getElementById('btnOpenTestRunner');
         const resetMemoryBtn = document.getElementById('btnResetMemory');
         const resetMemoryOverlay = document.getElementById('resetMemoryOverlay');
         const resetMemoryCancel = document.getElementById('btnResetMemoryCancel');
@@ -617,6 +618,38 @@
                 resetMemoryOverlay.setAttribute('aria-hidden', 'false');
             }
         }
+
+        /**
+         * Open the test runner in its own window, on the *other* host alias.
+         *
+         * localhost:8080 and 127.0.0.1:8080 are the same server but different
+         * storage origins, so the sandbox the suite wipes and re-seeds can never
+         * reach the library on this one. The runner refuses to run if it lands on
+         * the same origin anyway — belt and braces, since a wrong answer here costs
+         * the user every character they have.
+         */
+        function testRunnerUrl() {
+            const alias = location.hostname === 'localhost' ? '127.0.0.1'
+                : (location.hostname === '127.0.0.1' ? 'localhost' : null);
+            if (!alias) return null;
+            const port = location.port ? `:${location.port}` : '';
+            return `${location.protocol}//${alias}${port}/tests/ui/runner.html`
+                + `?from=${encodeURIComponent(location.origin)}`;
+        }
+
+        testRunnerBtn?.addEventListener('click', () => {
+            const url = testRunnerUrl();
+            if (!url) {
+                MirageUI.toast(
+                    `The test runner needs the app served from localhost or 127.0.0.1 — this is ${location.hostname}. `
+                    + 'Run it from the terminal instead: node tests/run.js all',
+                    'error'
+                );
+                return;
+            }
+            const win = window.open(url, 'mirageTestRunner');
+            if (!win) MirageUI.toast('Your browser blocked the runner window. Allow pop-ups for Mirage and try again.', 'error');
+        });
 
         resetMemoryBtn?.addEventListener('click', openResetMemoryOverlay);
         resetMemoryCancel?.addEventListener('click', closeResetMemoryOverlay);

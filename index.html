@@ -1083,6 +1083,14 @@
                             </label>
                             <p class="field-hint">Zero Google calls. Plumbing only — auto-enables mock images.</p>
                         </div>
+                        <div class="field">
+                            <button type="button" class="btn btn-ghost" id="btnOpenTestRunner">Open test runner…</button>
+                            <p class="field-hint" id="testRunnerHint">
+                                Opens the suite in its own window and runs the app in a throwaway sandbox.
+                                No API key, no credits, and it cannot touch this library — the sandbox runs on
+                                the other host alias, which is a separate storage origin.
+                            </p>
+                        </div>
                         <div class="field field-last">
                             <button type="button" class="btn btn-ghost" id="btnResetMemory">Reset memory…</button>
                             <p class="field-hint">

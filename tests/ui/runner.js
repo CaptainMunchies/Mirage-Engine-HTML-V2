@@ -1,0 +1,227 @@
+/**
+ * The runner window's UI.
+ *
+ * Three jobs, in the order they matter: fire a run in one click, show what failed
+ * without hunting, and get the failures out of the browser as text you can paste.
+ * Everything else — how tests execute, how the sandbox is wiped — lives in engine.js.
+ */
+(function () {
+    'use strict';
+
+    const $ = (id) => document.getElementById(id);
+
+    const els = {
+        runAll: $('btnRunAll'), runSmoke: $('btnRunSmoke'), runFailure: $('btnRunFailure'),
+        rerunFailed: $('btnRerunFailed'), cancel: $('btnCancel'),
+        summary: $('summary'), cPass: $('cPass'), cFail: $('cFail'), cRed: $('cRed'),
+        cFixed: $('cFixed'), pillFixed: $('pillFixed'), cMeta: $('cMeta'),
+        onlyProblems: $('onlyProblems'),
+        copy: $('btnCopy'), download: $('btnDownload'), downloadJson: $('btnDownloadJson'),
+        progressWrap: $('progressWrap'), progressBar: $('progressBar'), progressLabel: $('progressLabel'),
+        results: $('results'), empty: $('emptyState'),
+        originLabel: $('originLabel'), sandboxOrigin: $('sandboxOrigin'),
+        sandboxPane: $('sandboxPane'), sandboxHost: $('sandboxHost'), toggleSandbox: $('btnToggleSandbox'),
+        warning: $('originWarning'), warningText: $('originWarningText')
+    };
+
+    els.originLabel.textContent = location.origin;
+    els.sandboxOrigin.textContent = location.origin;
+
+    // ------------------------------------------------------- the safety check
+
+    // The app hands us the origin it is running on. If it matches ours, the sandbox
+    // and the real library share a storage origin and a run would wipe real data.
+    // That is the one condition under which this window must refuse to work.
+    const from = new URLSearchParams(location.search).get('from');
+    let blocked = false;
+    if (from && from === location.origin) {
+        blocked = true;
+        els.warningText.textContent =
+            `This window opened on ${location.origin}, the same origin as the app that opened it. `
+            + 'The sandbox would share storage with your real characters and chats, and a run wipes '
+            + 'the sandbox. Close this and open the runner from the app again — it is meant to land '
+            + 'on the other host alias (localhost vs 127.0.0.1).';
+        els.warning.hidden = false;
+        [els.runAll, els.runSmoke, els.runFailure, els.rerunFailed].forEach(b => { b.disabled = true; });
+    }
+
+    // --------------------------------------------------------------- rendering
+
+    let lastSnapshot = null;
+    const expanded = new Set();
+
+    function key(r) { return `${r.suite}::${r.name}`; }
+
+    function render(snap) {
+        lastSnapshot = snap;
+
+        els.summary.hidden = snap.total === 0 && !snap.running;
+        els.empty.hidden = snap.total > 0 || snap.running;
+
+        els.cPass.textContent = snap.counts.pass;
+        els.cFail.textContent = snap.counts.fail;
+        els.cRed.textContent = snap.counts.red;
+        els.cFixed.textContent = snap.counts.fixed;
+        els.pillFixed.hidden = snap.counts.fixed === 0;
+        els.cMeta.textContent = snap.durationMs != null
+            ? `${snap.total} tests in ${(snap.durationMs / 1000).toFixed(1)}s`
+            : (snap.running ? '' : `${snap.total} tests`);
+
+        els.progressWrap.hidden = !snap.running;
+        els.cancel.hidden = !snap.running;
+        [els.runAll, els.runSmoke, els.runFailure].forEach(b => { b.disabled = snap.running || blocked; });
+        els.rerunFailed.disabled = snap.running || blocked
+            || !snap.results.some(r => r.status === 'fail');
+
+        if (snap.running) {
+            const pct = snap.planned ? Math.round((snap.done / snap.planned) * 100) : 0;
+            els.progressBar.style.width = `${pct}%`;
+            els.progressLabel.textContent = snap.current
+                ? `${snap.done}/${snap.planned} — ${snap.current.name}`
+                : `${snap.done}/${snap.planned}`;
+        }
+
+        const onlyProblems = els.onlyProblems.checked;
+        const rows = snap.results.filter(r => !onlyProblems || r.status === 'fail' || r.status === 'red' || r.status === 'fixed');
+
+        const frag = document.createDocumentFragment();
+        let suite = null, group = null;
+        for (const r of rows) {
+            if (r.suiteTitle !== suite) {
+                suite = r.suiteTitle; group = null;
+                frag.appendChild(el('div', 'suite-head', suite));
+            }
+            if (r.group && r.group !== group) {
+                group = r.group;
+                frag.appendChild(el('div', 'group-head', `— ${group} —`));
+            }
+            frag.appendChild(rowFor(r));
+            if (expanded.has(key(r))) frag.appendChild(detailFor(r));
+        }
+        els.results.replaceChildren(frag);
+    }
+
+    function el(tag, cls, text) {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text != null) n.textContent = text;
+        return n;
+    }
+
+    const TAG = { pass: 'pass', fail: 'FAIL', red: 'red', fixed: 'FIXED' };
+
+    function rowFor(r) {
+        const interesting = r.status !== 'pass';
+        const row = el('div', `row row-${r.status}${interesting ? ' clickable' : ''}`);
+        row.appendChild(el('span', `tag tag-${r.status}`, TAG[r.status]));
+        row.appendChild(el('span', 'row-name', r.name));
+        row.appendChild(el('span', 'row-time', `${r.durationMs}ms`));
+        if (interesting) {
+            row.addEventListener('click', () => {
+                const k = key(r);
+                if (expanded.has(k)) expanded.delete(k); else expanded.add(k);
+                render(lastSnapshot);
+            });
+        }
+        return row;
+    }
+
+    function detailFor(r) {
+        const d = el('div', 'detail');
+        if (r.status === 'red') {
+            d.appendChild(el('span', 'known', `Known gap: ${r.expectedRed}\n\n`));
+        }
+        if (r.status === 'fixed') {
+            d.appendChild(el('span', 'known',
+                `This was expected to fail and now passes.\nWas: ${r.expectedRed}\n\nRemove the expectedRed marker.\n\n`));
+        }
+        if (r.failures.length) d.appendChild(document.createTextNode(r.failures.join('\n')));
+        if (r.status === 'fail' && r.sandboxErrors.length) {
+            d.appendChild(el('span', 'console',
+                `--- sandbox console (last 12) ---\n${r.sandboxErrors.slice(-12).join('\n')}`));
+        }
+        return d;
+    }
+
+    MirageRunner.onChange(render);
+
+    // ----------------------------------------------------------------- actions
+
+    async function start(opts) {
+        if (blocked) return;
+        expanded.clear();
+        try {
+            const snap = await MirageRunner.run(opts);
+            // Open every problem automatically — the whole point is not having to hunt.
+            snap.results.filter(r => r.status !== 'pass').forEach(r => expanded.add(key(r)));
+            render(snap);
+        } catch (err) {
+            alert(`The run could not start: ${err.message}`);
+        }
+    }
+
+    els.runAll.addEventListener('click', () => start({}));
+    els.runSmoke.addEventListener('click', () => start({ suiteIds: ['smoke'] }));
+    els.runFailure.addEventListener('click', () => start({ suiteIds: ['failure'] }));
+    els.rerunFailed.addEventListener('click', () => {
+        const only = (lastSnapshot?.results || []).filter(r => r.status === 'fail').map(key);
+        if (only.length) start({ only });
+    });
+    els.cancel.addEventListener('click', () => MirageRunner.cancel());
+    els.onlyProblems.addEventListener('change', () => render(lastSnapshot || MirageRunner.snapshot()));
+
+    // ----------------------------------------------------------------- export
+
+    function flash(btn, text) {
+        const was = btn.textContent;
+        btn.textContent = text;
+        setTimeout(() => { btn.textContent = was; }, 1400);
+    }
+
+    els.copy.addEventListener('click', async () => {
+        const text = MirageRunner.textReport(lastSnapshot || MirageRunner.snapshot());
+        try {
+            await navigator.clipboard.writeText(text);
+            flash(els.copy, 'Copied');
+        } catch (_) {
+            // Clipboard access can be refused; a selectable prompt still gets the
+            // text out, which is the point.
+            window.prompt('Copy the report:', text);
+        }
+    });
+
+    function save(text, ext, type) {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const blob = new Blob([text], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mirage-test-report-${stamp}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+
+    els.download.addEventListener('click', () => {
+        save(MirageRunner.textReport(lastSnapshot || MirageRunner.snapshot()), 'txt', 'text/plain');
+    });
+    els.downloadJson.addEventListener('click', () => {
+        save(MirageRunner.jsonReport(lastSnapshot || MirageRunner.snapshot()), 'json', 'application/json');
+    });
+
+    // ---------------------------------------------------------------- sandbox
+
+    let sandboxShown = true;
+    els.toggleSandbox.addEventListener('click', () => {
+        sandboxShown = !sandboxShown;
+        // Parked offscreen rather than unmounted: removing the iframe would kill the
+        // sandbox mid-run.
+        els.sandboxHost.classList.toggle('sandbox-parked', !sandboxShown);
+        els.sandboxPane.style.width = sandboxShown ? '' : 'auto';
+        els.sandboxPane.classList.toggle('collapsed', !sandboxShown);
+        els.toggleSandbox.textContent = sandboxShown ? 'Hide' : 'Show';
+    });
+
+    render(MirageRunner.snapshot());
+})();

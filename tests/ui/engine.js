@@ -1,0 +1,358 @@
+/**
+ * The runner engine — sandbox lifecycle + execution.
+ *
+ * This is the part the UI and the Node CLI share. The UI wraps it in buttons; Node
+ * opens this same page in Playwright and calls the same functions. Neither knows
+ * anything about individual tests.
+ *
+ * ## Why an iframe on the other host alias
+ *
+ * The app under test needs to be wiped repeatedly — cleared localStorage, deleted
+ * IndexedDB databases, fresh characters. Doing that to the app you actually use
+ * would destroy your library.
+ *
+ * `localhost:8080` and `127.0.0.1:8080` are the same server but *different storage
+ * origins*. Verified, not assumed: a key written at one reads back as `null` at the
+ * other. So the runner page is served from whichever alias you are **not** browsing
+ * with, and the sandbox iframe is same-origin with the runner. The parent can reach
+ * into the iframe freely; your real data is on the other side of an origin boundary
+ * the browser enforces.
+ */
+(function (global) {
+    'use strict';
+
+    const SANDBOX_URL = '/index.html';
+    const IDB_NAMES = ['mirage_v2_images', 'mirage_v2_anchors', 'mirage_v2_media_library'];
+    const LS_PREFIX = 'mirage_v2_';
+
+    // The holiday catalogue reaches the public internet. Those failures are
+    // environmental, not regressions.
+    const ENV_NOISE = /date\.nager\.at|hebcal\.com|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|Failed to load resource/;
+
+    const SAFETY_SEED = {
+        ageGate: { verified: true, dob: '1990-01-01' },
+        fictionConsent: { accepted: true, version: 1 }
+    };
+
+    const BASE_CONFIG = {
+        // Mock thinking needs Developer Mode; Instant pacing keeps turns from
+        // wall-waiting for minutes. Tests that need other pacing override it.
+        developerMode: true,
+        mockThinking: true,
+        mockImages: true,
+        pacingMode: 'instant'
+    };
+
+    // ------------------------------------------------------------------ state
+
+    let frame = null;
+    let sandboxErrors = [];
+    let currentConfig = { ...BASE_CONFIG };
+    let cancelled = false;
+
+    const state = {
+        running: false,
+        startedAt: null,
+        finishedAt: null,
+        results: [],       // one entry per finished test
+        current: null,     // {suite, name} while a test is in flight
+        planned: 0
+    };
+
+    const listeners = new Set();
+    function emit() { listeners.forEach(fn => { try { fn(snapshot()); } catch (_) { /* a broken listener is not a test failure */ } }); }
+    function onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+
+    // ---------------------------------------------------------------- sandbox
+
+    /**
+     * Remove only Mirage's own keys. The runner page shares this origin's
+     * localStorage with the sandbox, so a blanket clear() would be indiscriminate —
+     * and this documents exactly what a wipe destroys.
+     */
+    function clearMirageLocalStorage() {
+        const doomed = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(LS_PREFIX)) doomed.push(k);
+        }
+        doomed.forEach(k => localStorage.removeItem(k));
+        return doomed.length;
+    }
+
+    function deleteDatabase(name) {
+        return new Promise(resolve => {
+            let done = false;
+            const finish = (how) => { if (!done) { done = true; resolve(how); } };
+            let req;
+            try { req = indexedDB.deleteDatabase(name); }
+            catch (_) { return finish('threw'); }
+            req.onsuccess = () => finish('deleted');
+            req.onerror = () => finish('error');
+            // A blocked delete means a connection is still open somewhere. The
+            // iframe is torn down before this runs, so it should not happen — but
+            // hanging forever on it would be worse than carrying on.
+            req.onblocked = () => finish('blocked');
+            setTimeout(() => finish('timeout'), 5000);
+        });
+    }
+
+    async function wipeSandboxStorage() {
+        destroyFrame();
+        clearMirageLocalStorage();
+        for (const n of IDB_NAMES) await deleteDatabase(n);
+    }
+
+    function destroyFrame() {
+        if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
+        frame = null;
+    }
+
+    function watchErrors(win) {
+        const note = (s) => { if (!ENV_NOISE.test(s)) sandboxErrors.push(s); };
+        win.addEventListener('error', e => note(`error: ${e.message}`));
+        win.addEventListener('unhandledrejection', e => {
+            note(`unhandledrejection: ${e.reason?.message || e.reason}`);
+        });
+        const realError = win.console.error;
+        win.console.error = function (...args) {
+            note(`console: ${args.map(a => (a && a.message) || String(a)).join(' ')}`);
+            return realError.apply(this, args);
+        };
+    }
+
+    /**
+     * Boot the sandbox. `wipe` decides whether this is a fresh install or the
+     * reload-and-restore path; `config` is merged over the defaults for this boot
+     * and every boot after it, until the next call changes it.
+     */
+    async function bootSandbox({ wipe = false, config = null } = {}) {
+        if (config) currentConfig = { ...BASE_CONFIG, ...config };
+        if (wipe) {
+            await wipeSandboxStorage();
+            sandboxErrors = [];
+        } else {
+            destroyFrame();
+        }
+
+        // Seeded from the parent, which shares this origin — so it is in place
+        // before the app's safety gates run, and init() does not stall waiting for
+        // a click that headless has nobody to make.
+        localStorage.setItem('mirage_v2_safety', JSON.stringify(SAFETY_SEED));
+        localStorage.setItem('mirage_v2_config', JSON.stringify(currentConfig));
+
+        frame = document.createElement('iframe');
+        frame.id = 'sandboxFrame';
+        frame.title = 'Mirage sandbox under test';
+        frame.src = SANDBOX_URL;
+        (document.getElementById('sandboxHost') || document.body).appendChild(frame);
+
+        await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('the sandbox did not load in 30s')), 30000);
+            frame.addEventListener('load', () => { clearTimeout(timer); resolve(); }, { once: true });
+            frame.addEventListener('error', () => { clearTimeout(timer); reject(new Error('the sandbox failed to load')); }, { once: true });
+        });
+
+        const win = frame.contentWindow;
+        watchErrors(win);
+
+        // init() is async and binds subsystems only after the safety gates resolve.
+        const deadline = Date.now() + 20000;
+        while (typeof win.MirageApp === 'undefined') {
+            if (Date.now() > deadline) throw new Error('the app never published MirageApp — it failed to boot');
+            await new Promise(r => setTimeout(r, 50));
+        }
+        return win;
+    }
+
+    // -------------------------------------------------------------- execution
+
+    function selectTests({ suiteIds = null, only = null } = {}) {
+        const picked = [];
+        for (const s of MirageTests.allSuites()) {
+            if (suiteIds && !suiteIds.includes(s.id)) continue;
+            for (const test of s.tests) {
+                if (test.nodeOnly && !global.__MIRAGE_NODE__) continue;
+                if (only && !only.includes(`${s.id}::${test.name}`)) continue;
+                picked.push({ suite: s, test });
+            }
+        }
+        return picked;
+    }
+
+    function classify(r) {
+        if (!r.failures.length && !r.expectedRed) return 'pass';
+        if (!r.failures.length && r.expectedRed) return 'fixed';
+        if (r.failures.length && r.expectedRed) return 'red';
+        return 'fail';
+    }
+
+    function snapshot() {
+        const counts = { pass: 0, fail: 0, red: 0, fixed: 0 };
+        state.results.forEach(r => { counts[r.status] += 1; });
+        return {
+            running: state.running,
+            planned: state.planned,
+            done: state.results.length,
+            current: state.current,
+            results: state.results.slice(),
+            counts,
+            total: state.results.length,
+            startedAt: state.startedAt,
+            finishedAt: state.finishedAt,
+            durationMs: state.finishedAt && state.startedAt ? state.finishedAt - state.startedAt : null
+        };
+    }
+
+    /**
+     * Run a selection of tests. Resolves with the final snapshot.
+     *
+     * Each test gets a context bound to a live sandbox; tests that need a clean
+     * install call ctx.reset() themselves, so a test which only reads state can run
+     * against whatever the previous one left — which is what makes the smoke layer
+     * fast.
+     */
+    async function run(opts = {}) {
+        if (state.running) throw new Error('a run is already in progress');
+
+        const picked = selectTests(opts);
+        cancelled = false;
+        state.running = true;
+        state.startedAt = Date.now();
+        state.finishedAt = null;
+        state.results = [];
+        state.current = null;
+        state.planned = picked.length;
+        emit();
+
+        let ctx = null;
+        try {
+            const win = await bootSandbox({ wipe: true, config: opts.config || null });
+            ctx = MirageTests.makeContext({
+                win,
+                reload: (o) => bootSandbox(o),
+                errors: () => sandboxErrors.slice(),
+                config: () => ({ ...currentConfig })
+            });
+
+            for (const { suite, test } of picked) {
+                if (cancelled) break;
+                state.current = { suite: suite.id, suiteTitle: suite.title, name: test.name };
+                emit();
+
+                const failures = [];
+                const t = MirageTests.makeAssertions(failures);
+                const startedAt = Date.now();
+                try {
+                    await test.run(ctx, t);
+                } catch (err) {
+                    failures.push(`threw: ${err && err.message ? err.message : String(err)}`);
+                }
+
+                const result = {
+                    suite: suite.id,
+                    suiteTitle: suite.title,
+                    name: test.name,
+                    group: test.group || '',
+                    expectedRed: test.expectedRed || null,
+                    failures,
+                    durationMs: Date.now() - startedAt,
+                    // Errors the sandbox logged while this test ran, so a failure
+                    // comes with the console output that explains it.
+                    sandboxErrors: sandboxErrors.slice()
+                };
+                result.status = classify(result);
+                state.results.push(result);
+                state.current = null;
+                emit();
+            }
+        } catch (err) {
+            state.results.push({
+                suite: 'runner', suiteTitle: 'Runner', name: 'the run could not start',
+                group: '', expectedRed: null, status: 'fail',
+                failures: [`threw: ${err && err.message ? err.message : String(err)}`],
+                durationMs: 0, sandboxErrors: sandboxErrors.slice()
+            });
+        } finally {
+            state.running = false;
+            state.current = null;
+            state.finishedAt = Date.now();
+            // Leave the sandbox up: after a failing run the first thing you want is
+            // to look at what it left on screen.
+            emit();
+        }
+        return snapshot();
+    }
+
+    function cancel() { cancelled = true; }
+
+    // ----------------------------------------------------------------- report
+
+    /** A plain-text report — the thing you paste into an issue or hand to a model. */
+    function textReport(snap = snapshot()) {
+        const lines = [];
+        const stamp = new Date(snap.startedAt || Date.now()).toISOString();
+        lines.push('MIRAGE ENGINE — TEST REPORT');
+        lines.push(`run at:   ${stamp}`);
+        lines.push(`origin:   ${location.origin}  (sandbox; your app runs on the other alias)`);
+        lines.push(`browser:  ${navigator.userAgent}`);
+        lines.push(`duration: ${snap.durationMs != null ? (snap.durationMs / 1000).toFixed(1) + 's' : '—'}`);
+        lines.push('');
+        lines.push(`RESULT: ${snap.counts.pass} passed, ${snap.counts.fail} failed, `
+            + `${snap.counts.red} known-red, ${snap.counts.fixed} newly fixed  (${snap.total} total)`);
+        lines.push('');
+
+        const bySuite = new Map();
+        snap.results.forEach(r => {
+            if (!bySuite.has(r.suiteTitle)) bySuite.set(r.suiteTitle, []);
+            bySuite.get(r.suiteTitle).push(r);
+        });
+
+        for (const [title, rows] of bySuite) {
+            lines.push('='.repeat(70));
+            lines.push(title);
+            lines.push('='.repeat(70));
+            let group = null;
+            for (const r of rows) {
+                if (r.group && r.group !== group) { group = r.group; lines.push(`\n— ${group} —`); }
+                const tag = { pass: 'pass ', fail: 'FAIL ', red: 'red  ', fixed: 'FIXED' }[r.status];
+                lines.push(`  ${tag} ${r.name}  (${r.durationMs}ms)`);
+                if (r.status === 'red') lines.push(`        known: ${r.expectedRed}`);
+                if (r.status === 'fixed') {
+                    lines.push(`        was expected to fail: ${r.expectedRed}`);
+                    lines.push('        remove the expectedRed marker');
+                }
+                r.failures.forEach(f => lines.push(`        ${f}`));
+                if (r.status === 'fail' && r.sandboxErrors.length) {
+                    lines.push('        --- sandbox console ---');
+                    r.sandboxErrors.slice(-12).forEach(e => lines.push(`        ${e}`));
+                }
+            }
+            lines.push('');
+        }
+
+        if (snap.counts.fail === 0 && snap.counts.fixed === 0) {
+            lines.push('No unexpected failures.');
+        }
+        return lines.join('\n');
+    }
+
+    function jsonReport(snap = snapshot()) {
+        return JSON.stringify({
+            runAt: new Date(snap.startedAt || Date.now()).toISOString(),
+            origin: location.origin,
+            userAgent: navigator.userAgent,
+            durationMs: snap.durationMs,
+            counts: snap.counts,
+            total: snap.total,
+            results: snap.results
+        }, null, 2);
+    }
+
+    global.MirageRunner = {
+        run, cancel, snapshot, onChange, bootSandbox,
+        textReport, jsonReport,
+        get frame() { return frame; },
+        BASE_CONFIG
+    };
+})(window);

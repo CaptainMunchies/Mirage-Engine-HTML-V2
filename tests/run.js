@@ -6,7 +6,13 @@
  *   node run.js record             Layer 2 — compare against the committed baseline
  *   node run.js record --update    Layer 2 — re-record the baseline (deliberate act)
  *   node run.js failure            Layer 3 — failure and edge cases
+ *   node run.js nodeonly           the handful that need a driver outside the page
  *   node run.js all                everything
+ *
+ * Layers 1 and 3 are the *same* tests the in-app runner fires: they live in
+ * `tests/suites/` as plain browser code, and both runners execute them through
+ * `tests/ui/runner.html`. There is one definition, so the terminal and the button
+ * cannot drift apart.
  *
  * Exit code is 0 unless something failed that was not expected to. A known-red
  * Layer 3 test does not fail the run: it is a tracked gap, not a broken suite.
@@ -15,9 +21,10 @@ const { startServer } = require('./lib/server');
 const { printSummary, C } = require('./lib/report');
 
 const LAYERS = {
-    smoke: () => require('./layer1-smoke'),
+    smoke: () => ({ run: (o) => require('./layer-browser').smoke(o) }),
     record: () => require('./layer2-record'),
-    failure: () => require('./layer3-failure')
+    failure: () => ({ run: (o) => require('./layer-browser').failure(o) }),
+    nodeonly: () => require('./layer-nodeonly')
 };
 
 async function main() {
