@@ -33,6 +33,15 @@
     }
 
     /**
+     * The key belongs in a header, never in the URL — query strings land in browser
+     * history, proxy logs and Referer headers. This is what the /interactions path
+     * has always done; these are the routes that hadn't caught up.
+     */
+    function googleHeaders(apiKey, extra) {
+        return { 'x-goog-api-key': apiKey, ...(extra || {}) };
+    }
+
+    /**
      * mirage_server.py tags every proxy reply — success or error — as application/json, so any other
      * content type on this route means a plain static server answered and cannot forward to Google.
      */
@@ -382,11 +391,11 @@
             body.generationConfig = { responseMimeType: 'application/json' };
         }
 
-        const url = `${BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const url = `${BASE}/models/${encodeURIComponent(model)}:generateContent`;
         try {
             const res = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: googleHeaders(apiKey, { 'Content-Type': 'application/json' }),
                 body: JSON.stringify(body),
                 signal: signal || undefined
             });
@@ -711,7 +720,7 @@
         if (resolvedProvider === 'kie') {
             return MirageKieAPI.testApiKey(apiKey);
         }
-        const res = await fetch(`${BASE}/models?key=${encodeURIComponent(apiKey)}`);
+        const res = await fetch(`${BASE}/models`, { headers: googleHeaders(apiKey) });
         if (!res.ok) {
             const err = await parseJsonResponseSafe(res);
             throw new Error(err?.error?.message || 'Invalid API key');
@@ -720,7 +729,7 @@
     }
 
     async function listModels(apiKey) {
-        const res = await fetch(`${BASE}/models?key=${encodeURIComponent(apiKey)}`);
+        const res = await fetch(`${BASE}/models`, { headers: googleHeaders(apiKey) });
         if (!res.ok) throw new Error('Failed to list models');
         const data = await parseJsonResponseSafe(res);
         return (data.models || []).map(m => ({
