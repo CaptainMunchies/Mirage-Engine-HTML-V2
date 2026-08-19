@@ -119,12 +119,18 @@ Seven phases. Each ends with a working app. The ordering is not arbitrary — fo
 Everything here is a defect with a known fix and a known location. Finding IDs refer to
 `docs/PRODUCT_REVIEW.md`; §5 tracks every one of them to completion.
 
-> **Status: 1a is done** — shipped on `claude/mirage-v3`, one commit per finding, each with the
+> **Status: 1a and 1b are both done** — shipped on `claude/mirage-v3`, one commit per finding, each with the
 > verification in its message. Every fix was checked by driving the real code in a headless browser
 > rather than by inspection: the timezone resolver against all 23 previously-broken locations, the
 > refusal beats by running turns through the mock until `ghost_type`, `left_on_read` and `went_quiet`
 > each rolled, the SSRF fix against a live server with 12 attack probes, and the backup by exporting a
-> full character, opening a fresh browser profile, and restoring it. **1b has not been started.**
+> full character, opening a fresh browser profile, and restoring it.
+>
+> **1b is done too**, in seven commits. Two items were deliberately scoped: the native
+> `confirm()` dialogs now say exactly what a delete destroys and point at Export, but
+> *replacing* them with styled modals stays a Phase 5 item; and the kie poll backoff could
+> not be exercised end-to-end here, since that path needs a live kie key. Everything else
+> was verified by running it.
 
 #### 1a — Defects that change behaviour
 
@@ -548,9 +554,9 @@ why.
 | B1 | Image timeout misreported as "no image" | **Phase 1a — done** |
 | B2 | Refusal heuristic runs before JSON parse | **Phase 1a — done** |
 | B3 | Cancel leaks shot-variance state | **Phase 1a — done** |
-| B4 | Error copy names models the provider lacks | **Phase 1b** |
+| B4 | Error copy names models the provider lacks | **Phase 1b — done** |
 | B5 | Launcher pins Python 3.11 | **Phase 1a — done** |
-| B6 | Unreachable branch in `errors.js` | **Phase 1b** |
+| B6 | Unreachable branch in `errors.js` | **Phase 1b — done** |
 | B7 | Input-token ceiling silently exceeded | **Phase 1a — done** |
 | B8 | `STOP MIRAGE` kills any process on 8080 | **Phase 1a — done** |
 | B9 | `//` comments in the JSON example shown to the model | **Phase 3** |
@@ -559,40 +565,40 @@ why.
 | D1 | No export, import or backup | **Phase 1a — done** |
 | D2 | Three separate IndexedDB databases, no migration path | **Parked** — see §6 |
 | D3 | Async cleanup in a synchronous `try/catch` | **Phase 1a — done** |
-| I2 | Stale V1 architecture note in the UI | **Phase 1b** |
+| I2 | Stale V1 architecture note in the UI | **Phase 1b — done** |
 | I6 | Header reads "Google AI" while running on kie | **Phase 1b** (app copy only — README half is out of scope) |
-| I9 | 20-vs-30 photo limit mismatch | **Phase 1b** |
+| I9 | 20-vs-30 photo limit mismatch | **Phase 1b — done** |
 | I10 | Turn schema exists in two drifting copies | **Phase 3** |
-| I11 | 12 `@deprecated` shims | **Phase 1b** |
-| I13 | Deck vs router disagree on Change Outfit | **Phase 1b** |
-| I14 | `MirageSessionStore` dead global | **Phase 1b** |
-| I15 | Two module-export conventions | **Phase 1b** |
-| — | `clearPhoneFeed` doesn't reset presence | **Phase 1b** |
-| — | Dead `#phoneStatus` fallback | **Phase 1b** |
-| — | Weekday fallback uses the browser's timezone | **Phase 1b** |
-| — | `resolve()` greedy substring match | **Phase 1b** |
-| — | kie polling: no backoff, logs every poll | **Phase 1b** |
+| I11 | 12 `@deprecated` shims | **Phase 1b — done** |
+| I13 | Deck vs router disagree on Change Outfit | **Phase 1b — done** |
+| I14 | `MirageSessionStore` dead global | **Phase 1b — done** |
+| I15 | Two module-export conventions | **Phase 1b — done** |
+| — | `clearPhoneFeed` doesn't reset presence | **Phase 1b — done** |
+| — | Dead `#phoneStatus` fallback | **Phase 1b — done** |
+| — | Weekday fallback uses the browser's timezone | **Phase 1b — done** |
+| — | `resolve()` greedy substring match | **Phase 1b — done** |
+| — | kie polling: no backoff, logs every poll | **Phase 1b — done** |
 | — | No schema validation on the turn contract | **Phase 3** |
 | — | Client regex NLU duplicates the model's job | **Phase 3** |
 | — | Prompt corpus has no regression protection | **Phase 2** |
 | — | Memory ledger evicts by recency only | **Phase 6** |
-| N1 | All three IndexedDB stores cache a rejected open | **Phase 1b** |
-| N2 | No `onblocked` handler on IDB open — activated by the planned migration work | **Phase 1b** |
-| N3 | Destructive deletes behind a native `confirm()`, no undo, no backup yet | **Phase 1b** + Phase 5 |
+| N1 | All three IndexedDB stores cache a rejected open | **Phase 1b — done** |
+| N2 | No `onblocked` handler on IDB open — activated by the planned migration work | **Phase 1b — done** |
+| N3 | Destructive deletes behind a native `confirm()`, no undo, no backup yet | **Phase 1b — done** (styled modals stay Phase 5) |
 | N4 | **Legacy chat migration overwrites instead of merging** | **Phase 1a — done** |
 | N5 | **Body reference leaks between characters and is saved onto the wrong one** | **Phase 1a — done** |
-| N6 | `openSessionChoice` dereferences before its own null check | **Phase 1b** |
-| N7 | Character save writes localStorage twice — partial-save risk on quota | **Phase 1b** |
-| N8 | Body reference selectable while the setting silently ignores it | **Phase 1b** + Phase 5 |
-| N9 | `protocolBadge` unescaped in `innerHTML` | **Phase 1b** |
-| N10 | Photos identified by filename — duplicates collide | **Phase 1b** |
-| N11 | `restoreChatUi()` unawaited after deleting the active chat | **Phase 1b** |
+| N6 | `openSessionChoice` dereferences before its own null check | **Phase 1b — done** |
+| N7 | Character save writes localStorage twice — partial-save risk on quota | **Phase 1b — done** |
+| N8 | Body reference selectable while the setting silently ignores it | **Phase 1b — done** (styled modals stay Phase 5) |
+| N9 | `protocolBadge` unescaped in `innerHTML` | **Phase 1b — done** |
+| N10 | Photos identified by filename — duplicates collide | **Phase 1b — done** |
+| N11 | `restoreChatUi()` unawaited after deleting the active chat | **Phase 1b — done** |
 | N12 | **Hybrid never wall-waits on model-authored time jumps — computed then discarded** | **Phase 1a — done** |
-| N13 | Hebrew `הייכן` typo — the formal "where" can never match | **Phase 1b** |
+| N13 | Hebrew `הייכן` typo — the formal "where" can never match | **Phase 1b — done** |
 | N14 | **`lastTimeSkipMs` never cleared on ditch-hold / streak-cap turns — presence stuck warm, stale prompt injects** | **Phase 1a — done** |
-| N15 | Redundant `coldEng \|\| coolEng` | **Phase 1b** |
-| N16 | `delivery.style: 'slow'` inert at warm presence | **Phase 1b** |
-| N17 | **Mock delivery cycle dead outside Realtime — blocks Phase 2's deterministic transcripts** | **Phase 1b** (before Phase 2 needs it) |
+| N15 | Redundant `coldEng \|\| coolEng` | **Phase 1b — done** |
+| N16 | `delivery.style: 'slow'` inert at warm presence | **Phase 1b — done** |
+| N17 | **Mock delivery cycle dead outside Realtime — blocks Phase 2's deterministic transcripts** | **Phase 1b — done** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
 
 ### Review depth — stated honestly
