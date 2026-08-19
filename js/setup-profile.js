@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Segment 3: Identity profile
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -493,7 +493,7 @@
         });
     }
 
-    window.MirageSetupProfile = {
+    global.MirageSetupProfile = {
         bindProfileStep,
         onEnterStep,
         readForm,
@@ -508,4 +508,4 @@
         INFER_DISPLAY,
         INFER_PROMPT: 'Infer using media and other details present'
     };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

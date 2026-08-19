@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Segment 4: Starting protocol + standby handoff
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -304,7 +304,7 @@
         }
     }
 
-    window.MirageSetupProtocol = {
+    global.MirageSetupProtocol = {
         bindProtocolStep,
         onEnterStep4,
         onEnterStep5,
@@ -316,4 +316,4 @@
         getStoryLaunchInput,
         storyLaunchMessage
     };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

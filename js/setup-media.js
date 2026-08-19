@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Segment 1: Media ingest + forensic scrape
  */
-(function () {
+(function (global) {
     'use strict';
 
     const MAX_VIDEOS = 3;
@@ -394,5 +394,5 @@
         updateEdfPreview();
     }
 
-    window.MirageSetupMedia = { bindMediaStep, runForensicScrape, refresh: () => { renderMediaGrid(); updateEdfPreview(); updateContinueButton(); } };
-})();
+    global.MirageSetupMedia = { bindMediaStep, runForensicScrape, refresh: () => { renderMediaGrid(); updateEdfPreview(); updateContinueButton(); } };
+})(typeof window !== 'undefined' ? window : globalThis);

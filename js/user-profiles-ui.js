@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Settings UI for operator / user profiles
  */
-(function () {
+(function (global) {
     'use strict';
 
     let editingId = null;
@@ -227,9 +227,9 @@
         });
     }
 
-    window.MirageUserProfilesUI = {
+    global.MirageUserProfilesUI = {
         bind,
         refresh,
         renderList
     };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

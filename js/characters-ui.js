@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Saved characters UI (save / load / delete)
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -500,7 +500,7 @@
         });
     }
 
-    window.MirageCharactersUI = {
+    global.MirageCharactersUI = {
         bind,
         open: openModal,
         saveCurrentCharacter,
@@ -509,4 +509,4 @@
         renderList,
         refreshWelcome: renderWelcomeCharacters
     };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

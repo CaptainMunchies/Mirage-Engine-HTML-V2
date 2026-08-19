@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Active simulation (turn engine + image pipeline)
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -5183,7 +5183,7 @@
         });
     }
 
-    window.MirageSimulation = {
+    global.MirageSimulation = {
         bind,
         launch,
         onEnter,
@@ -5224,4 +5224,4 @@
         clearSceneContinuity,
         restoreSceneContinuity
     };
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

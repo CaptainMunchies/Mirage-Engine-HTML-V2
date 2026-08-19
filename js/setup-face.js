@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Segment 2: Master face selection & lock
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -498,5 +498,5 @@
         });
     }
 
-    window.MirageSetupFace = { bindFaceStep, onEnterStep, renderFaceGrid, renderBodyReference, renderBodyGrid };
-})();
+    global.MirageSetupFace = { bindFaceStep, onEnterStep, renderFaceGrid, renderBodyReference, renderBodyGrid };
+})(typeof window !== 'undefined' ? window : globalThis);

@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — App bootstrap
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -1019,7 +1019,7 @@
         bindSafely('Immersion', () => MirageImmersion.bind());
         bindSafely('Debug panel', () => MirageDebugPanel.bind());
 
-        window.MirageApp = {
+        global.MirageApp = {
             goToSetupStep,
             navigateStepper,
             getMaxUnlockedStep,
@@ -1048,4 +1048,4 @@
     document.addEventListener('DOMContentLoaded', () => {
         init().catch(err => console.error('[Mirage] Init failed', err));
     });
-})();
+})(typeof window !== 'undefined' ? window : globalThis);

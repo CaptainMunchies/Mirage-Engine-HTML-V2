@@ -1,7 +1,7 @@
 /**
  * MIRAGE ENGINE v2 — Saved chats UI (list / load / new per character)
  */
-(function () {
+(function (global) {
     'use strict';
 
     const S = () => EngineState;
@@ -234,5 +234,5 @@
         });
     }
 
-    window.MirageChatsUI = { bind, openModal, renderList, startNewChat, continueChat: loadChat };
-})();
+    global.MirageChatsUI = { bind, openModal, renderList, startNewChat, continueChat: loadChat };
+})(typeof window !== 'undefined' ? window : globalThis);
