@@ -1416,7 +1416,7 @@
         const herNow = typeof MiragePhoneUX?.herNow === 'function'
             ? MiragePhoneUX.herNow()
             : new Date();
-        const tz = MiragePhoneUX?.resolveTimeZone?.(profile.location);
+        const tz = MiragePhoneUX?.resolveTimeZone?.(profile.location, profile);
         const stored = MirageChatStore.getActiveChat?.(S());
         const mockLabel = MirageMockAPI?.apiModeLabel?.() || 'live';
         const hist = Array.isArray(sess.history) ? sess.history : [];
@@ -1476,6 +1476,7 @@
             line('Name', profile.name || S()?.activeCharacterLabel || '—'),
             line('Age', profile.age ?? '—'),
             line('Location', profile.location || '—'),
+            line('Timezone', `${tz || '—'}${profile.timezone ? ' (set)' : ' (inferred)'}`),
             line('Character id', S()?.activeCharacterId || MirageChatStore.characterKey?.(S()) || '—'),
             line('Chat id', sess.activeChatId || '—'),
             line('Chat label', stored?.label || '—'),

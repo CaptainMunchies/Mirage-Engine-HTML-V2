@@ -678,8 +678,9 @@
     }
 
     function getSimDateParts(profile) {
-        const loc = profile?.location || global.EngineState?.profile?.location;
-        const tz = global.MiragePhoneUX?.resolveTimeZone?.(loc) || 'UTC';
+        const record = profile || global.EngineState?.profile;
+        const loc = record?.location;
+        const tz = global.MiragePhoneUX?.resolveTimeZone?.(loc, record) || 'UTC';
         const now = typeof global.MiragePhoneUX?.herNow === 'function'
             ? global.MiragePhoneUX.herNow()
             : new Date();

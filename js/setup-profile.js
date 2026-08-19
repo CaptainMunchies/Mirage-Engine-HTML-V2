@@ -14,10 +14,99 @@
         { key: 'archetype', id: 'profArchetype', type: 'input' },
         { key: 'relationship', id: 'profRelationship', type: 'input' },
         { key: 'location', id: 'profLocation', type: 'input' },
+        { key: 'timezone', id: 'profTimezone', type: 'select', defaultValue: '' },
         { key: 'personality', id: 'profPersonality', type: 'input' },
-        { key: 'loyalty', id: 'profLoyalty', type: 'select' },
+        { key: 'loyalty', id: 'profLoyalty', type: 'select', defaultValue: 'Medium (Balanced)' },
         { key: 'notes', id: 'profNotes', type: 'textarea' }
     ];
+
+    /** Used when Intl.supportedValuesOf is unavailable — covers the CITY_TZ range. */
+    const FALLBACK_ZONES = [
+        'Pacific/Honolulu', 'America/Anchorage', 'America/Los_Angeles', 'America/Tijuana',
+        'America/Phoenix', 'America/Denver', 'America/Edmonton', 'America/Chicago',
+        'America/Mexico_City', 'America/Winnipeg', 'America/New_York', 'America/Detroit',
+        'America/Toronto', 'America/Bogota', 'America/Lima', 'America/Santiago',
+        'America/Sao_Paulo', 'America/Argentina/Buenos_Aires', 'Atlantic/Reykjavik',
+        'Europe/Dublin', 'Europe/Lisbon', 'Europe/London', 'Europe/Amsterdam', 'Europe/Berlin',
+        'Europe/Brussels', 'Europe/Budapest', 'Europe/Copenhagen', 'Europe/Madrid', 'Europe/Oslo',
+        'Europe/Paris', 'Europe/Prague', 'Europe/Rome', 'Europe/Stockholm', 'Europe/Vienna',
+        'Europe/Warsaw', 'Europe/Zurich', 'Europe/Athens', 'Europe/Helsinki', 'Europe/Istanbul',
+        'Europe/Kyiv', 'Europe/Moscow', 'Africa/Casablanca', 'Africa/Lagos', 'Africa/Cairo',
+        'Africa/Johannesburg', 'Africa/Nairobi', 'Asia/Jerusalem', 'Asia/Riyadh', 'Asia/Qatar',
+        'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Bangkok', 'Asia/Jakarta',
+        'Asia/Ho_Chi_Minh', 'Asia/Singapore', 'Asia/Kuala_Lumpur', 'Asia/Manila',
+        'Asia/Hong_Kong', 'Asia/Shanghai', 'Asia/Taipei', 'Asia/Seoul', 'Asia/Tokyo',
+        'Australia/Perth', 'Australia/Adelaide', 'Australia/Brisbane', 'Australia/Melbourne',
+        'Australia/Sydney', 'Pacific/Auckland', 'UTC'
+    ];
+
+    let timezoneSelectFilled = false;
+
+    /** Populate the zone picker once, from the runtime's own IANA list where available. */
+    function fillTimezoneSelect() {
+        const select = document.getElementById('profTimezone');
+        if (!select || timezoneSelectFilled) return;
+
+        let zones = [];
+        try {
+            if (typeof Intl.supportedValuesOf === 'function') {
+                zones = Intl.supportedValuesOf('timeZone') || [];
+            }
+        } catch { /* fall through to the curated list */ }
+        if (!zones.length) zones = FALLBACK_ZONES;
+
+        const frag = document.createDocumentFragment();
+        zones.forEach(zone => {
+            const opt = document.createElement('option');
+            opt.value = zone;
+            opt.textContent = zone.replace(/_/g, ' ');
+            frag.appendChild(opt);
+        });
+        select.appendChild(frag);
+        timezoneSelectFilled = true;
+    }
+
+    /**
+     * Show which zone is actually in force and what her clock reads right now, so a wrong
+     * Auto guess is visible at setup rather than three hours into a chat.
+     */
+    function updateTimezoneHint() {
+        const hint = document.getElementById('profTimezoneHint');
+        if (!hint) return;
+
+        const base = 'Drives her bezel clock, last-seen, daily routine and every time-of-day cue.';
+        const chosen = String(document.getElementById('profTimezone')?.value || '').trim();
+        const location = isAutoFillOn('location')
+            ? cachedValue('location')
+            : (document.getElementById('profLocation')?.value || '');
+
+        let zone = chosen;
+        let source = 'Set';
+        if (!zone) {
+            zone = MiragePhoneUX?.inferTimeZoneFromLocation?.(location) || '';
+            source = zone ? 'Auto' : '';
+            if (!zone) {
+                zone = MiragePhoneUX?.browserTimeZone?.() || 'UTC';
+                source = 'Fallback';
+            }
+        }
+
+        let clock = '';
+        try {
+            clock = new Intl.DateTimeFormat('en-US', {
+                timeZone: zone, hour: 'numeric', minute: '2-digit', hour12: true
+            }).format(new Date());
+        } catch { /* leave the clock off if the zone is unusable */ }
+
+        const zoneLabel = zone.replace(/_/g, ' ');
+        if (source === 'Fallback') {
+            hint.textContent = `${base} No match for that location — falling back to your own timezone `
+                + `(${zoneLabel}${clock ? `, ${clock}` : ''}). Pick her zone explicitly.`;
+        } else {
+            hint.textContent = `${base} ${source}: ${zoneLabel}`
+                + `${clock ? ` — ${clock} her time.` : '.'}`;
+        }
+    }
 
     /** Hidden typed values while Auto-Fill is showing the infer placeholder. */
     let autoFillCache = {};
@@ -97,8 +186,7 @@
             else el.value = INFER_DISPLAY;
         } else if (spec.type === 'select') {
             ensureLoyaltyInferOption(el, false);
-            const restored = cachedValue(key) || 'Medium (Balanced)';
-            el.value = restored;
+            el.value = cachedValue(key) || spec.defaultValue || '';
         } else {
             el.value = cachedValue(key);
         }
@@ -159,6 +247,8 @@
         const location = autoFill.location
             ? cachedValue('location')
             : (readLiveValue(fieldSpec('location')) || 'Unset');
+        // '' means "infer from location" — resolveTimeZone treats a blank as no override.
+        const timezone = readLiveValue(fieldSpec('timezone'));
         const personality = autoFill.personality
             ? cachedValue('personality')
             : (readLiveValue(fieldSpec('personality')) || 'Bratty/Slang');
@@ -178,6 +268,7 @@
             archetype,
             relationship,
             location,
+            timezone,
             personality,
             loyalty,
             notes,
@@ -192,6 +283,7 @@
     function syncFormFromState() {
         const p = S().profile || {};
         autoFillCache = { ...(p.autoFillCache || {}) };
+        fillTimezoneSelect();
 
         let name = p.name || autoFillCache.name || '';
         let age = p.age != null && p.age !== '' ? String(p.age) : (autoFillCache.age || '');
@@ -209,6 +301,7 @@
             archetype: p.archetype || '',
             relationship: p.relationship || '',
             location: p.location || '',
+            timezone: p.timezone || '',
             personality: p.personality || '',
             loyalty: p.loyalty || 'Medium (Balanced)',
             notes: p.notes || ''
@@ -232,13 +325,15 @@
                 el.disabled = false;
                 if (spec.type === 'select') {
                     ensureLoyaltyInferOption(el, false);
-                    el.value = cachedValue(spec.key) || 'Medium (Balanced)';
+                    el.value = cachedValue(spec.key) || spec.defaultValue || '';
                 } else {
                     el.value = cachedValue(spec.key);
                 }
             }
             applyAutoFillUi(spec.key, on);
         });
+
+        updateTimezoneHint();
     }
 
     function updateProfileSaveUi() {
@@ -378,14 +473,18 @@
             });
         });
 
-        document.getElementById('profileForm')?.addEventListener('input', (e) => {
+        const onProfileFieldEdited = (e) => {
             if (e.target?.dataset?.autofill) return;
             const spec = PROFILE_FIELDS.find(f => f.id === e.target?.id);
             if (spec && !isAutoFillOn(spec.key)) {
                 setCachedValue(spec.key, readLiveValue(spec));
             }
+            // Location and zone both change which clock she lives on — keep the hint honest.
+            if (spec && (spec.key === 'location' || spec.key === 'timezone')) updateTimezoneHint();
             updateProfileSaveUi();
-        });
+        };
+        document.getElementById('profileForm')?.addEventListener('input', onProfileFieldEdited);
+        document.getElementById('profileForm')?.addEventListener('change', onProfileFieldEdited);
         document.getElementById('profileForm')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
                 e.preventDefault();

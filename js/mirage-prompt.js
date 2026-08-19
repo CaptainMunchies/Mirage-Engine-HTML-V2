@@ -3025,7 +3025,7 @@ protocol selection. Stay brief and practical.
         ].filter(Boolean);
 
         if (typeof MiragePhoneUX !== 'undefined') {
-            const tz = MiragePhoneUX.resolveTimeZone(ctx.profile?.location);
+            const tz = MiragePhoneUX.resolveTimeZone(ctx.profile?.location, ctx.profile);
             const now = MiragePhoneUX.herNow();
             lines.push(`Her local time (${tz}): ${MiragePhoneUX.formatClock(now, tz)}`);
             lines.push(

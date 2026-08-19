@@ -9,45 +9,144 @@
 
     const S = () => global.EngineState;
 
-    /** Common free-text location → IANA. Falls back to the browser zone. */
+    /**
+     * Common free-text location → IANA, used only when the character record carries
+     * no explicit `profile.timezone`. Matching is whole-word and longest-key-first
+     * (see CITY_TZ_MATCHERS) — a substring scan in object order used to send every
+     * location containing the letters "la" to Los Angeles, Dallas and Atlanta included.
+     */
     const CITY_TZ = {
         'los angeles': 'America/Los_Angeles', 'la': 'America/Los_Angeles', 'nyc': 'America/New_York',
-        'new york': 'America/New_York', 'brooklyn': 'America/New_York', 'miami': 'America/New_York',
+        'new york': 'America/New_York', 'brooklyn': 'America/New_York', 'queens': 'America/New_York',
+        'boston': 'America/New_York', 'philadelphia': 'America/New_York', 'philly': 'America/New_York',
+        'washington': 'America/New_York', 'dc': 'America/New_York', 'atlanta': 'America/New_York',
+        'orlando': 'America/New_York', 'tampa': 'America/New_York', 'charlotte': 'America/New_York',
+        'detroit': 'America/Detroit', 'cleveland': 'America/New_York', 'pittsburgh': 'America/New_York',
+        'miami': 'America/New_York',
         'chicago': 'America/Chicago', 'houston': 'America/Chicago', 'dallas': 'America/Chicago',
-        'denver': 'America/Denver', 'phoenix': 'America/Phoenix', 'seattle': 'America/Los_Angeles',
-        'san francisco': 'America/Los_Angeles', 'sf': 'America/Los_Angeles', 'vegas': 'America/Los_Angeles',
-        'london': 'Europe/London', 'paris': 'Europe/Paris', 'berlin': 'Europe/Berlin',
-        'amsterdam': 'Europe/Amsterdam', 'madrid': 'Europe/Madrid', 'rome': 'Europe/Rome',
-        'tokyo': 'Asia/Tokyo', 'osaka': 'Asia/Tokyo', 'seoul': 'Asia/Seoul',
-        'shanghai': 'Asia/Shanghai', 'beijing': 'Asia/Shanghai', 'hong kong': 'Asia/Hong_Kong',
-        'singapore': 'Asia/Singapore', 'sydney': 'Australia/Sydney', 'melbourne': 'Australia/Melbourne',
-        'toronto': 'America/Toronto', 'vancouver': 'America/Vancouver', 'mexico': 'America/Mexico_City',
-        'dubai': 'Asia/Dubai', 'mumbai': 'Asia/Kolkata', 'delhi': 'Asia/Kolkata',
-        'tel aviv': 'Asia/Jerusalem', 'israel': 'Asia/Jerusalem', 'moscow': 'Europe/Moscow'
+        'austin': 'America/Chicago', 'san antonio': 'America/Chicago', 'nashville': 'America/Chicago',
+        'new orleans': 'America/Chicago', 'minneapolis': 'America/Chicago', 'kansas city': 'America/Chicago',
+        'st louis': 'America/Chicago', 'milwaukee': 'America/Chicago', 'memphis': 'America/Chicago',
+        'denver': 'America/Denver', 'salt lake city': 'America/Denver', 'albuquerque': 'America/Denver',
+        'new mexico': 'America/Denver', 'boise': 'America/Boise',
+        'phoenix': 'America/Phoenix', 'arizona': 'America/Phoenix', 'tucson': 'America/Phoenix',
+        'seattle': 'America/Los_Angeles', 'portland': 'America/Los_Angeles', 'oakland': 'America/Los_Angeles',
+        'sacramento': 'America/Los_Angeles', 'san diego': 'America/Los_Angeles',
+        'san jose': 'America/Los_Angeles', 'san francisco': 'America/Los_Angeles',
+        'sf': 'America/Los_Angeles', 'vegas': 'America/Los_Angeles', 'las vegas': 'America/Los_Angeles',
+        'honolulu': 'Pacific/Honolulu', 'hawaii': 'Pacific/Honolulu', 'anchorage': 'America/Anchorage',
+        'alaska': 'America/Anchorage',
+        'london': 'Europe/London', 'manchester': 'Europe/London', 'liverpool': 'Europe/London',
+        'edinburgh': 'Europe/London', 'glasgow': 'Europe/London', 'dublin': 'Europe/Dublin',
+        'ireland': 'Europe/Dublin', 'iceland': 'Atlantic/Reykjavik', 'reykjavik': 'Atlantic/Reykjavik',
+        'lisbon': 'Europe/Lisbon', 'portugal': 'Europe/Lisbon',
+        'paris': 'Europe/Paris', 'lyon': 'Europe/Paris', 'marseille': 'Europe/Paris',
+        'berlin': 'Europe/Berlin', 'munich': 'Europe/Berlin', 'hamburg': 'Europe/Berlin',
+        'frankfurt': 'Europe/Berlin', 'cologne': 'Europe/Berlin',
+        'amsterdam': 'Europe/Amsterdam', 'rotterdam': 'Europe/Amsterdam',
+        'brussels': 'Europe/Brussels', 'zurich': 'Europe/Zurich', 'geneva': 'Europe/Zurich',
+        'vienna': 'Europe/Vienna', 'prague': 'Europe/Prague', 'budapest': 'Europe/Budapest',
+        'warsaw': 'Europe/Warsaw', 'poland': 'Europe/Warsaw', 'krakow': 'Europe/Warsaw',
+        'madrid': 'Europe/Madrid', 'barcelona': 'Europe/Madrid', 'valencia': 'Europe/Madrid',
+        'rome': 'Europe/Rome', 'milan': 'Europe/Rome', 'naples': 'Europe/Rome', 'venice': 'Europe/Rome',
+        'florence': 'Europe/Rome', 'athens': 'Europe/Athens', 'greece': 'Europe/Athens',
+        'stockholm': 'Europe/Stockholm', 'oslo': 'Europe/Oslo', 'copenhagen': 'Europe/Copenhagen',
+        'helsinki': 'Europe/Helsinki', 'finland': 'Europe/Helsinki',
+        'istanbul': 'Europe/Istanbul', 'kyiv': 'Europe/Kyiv', 'kiev': 'Europe/Kyiv',
+        'moscow': 'Europe/Moscow', 'st petersburg': 'Europe/Moscow',
+        'tokyo': 'Asia/Tokyo', 'osaka': 'Asia/Tokyo', 'kyoto': 'Asia/Tokyo', 'japan': 'Asia/Tokyo',
+        'seoul': 'Asia/Seoul', 'korea': 'Asia/Seoul',
+        'shanghai': 'Asia/Shanghai', 'beijing': 'Asia/Shanghai', 'shenzhen': 'Asia/Shanghai',
+        'hong kong': 'Asia/Hong_Kong', 'taipei': 'Asia/Taipei', 'taiwan': 'Asia/Taipei',
+        'singapore': 'Asia/Singapore', 'bangkok': 'Asia/Bangkok', 'thailand': 'Asia/Bangkok',
+        'jakarta': 'Asia/Jakarta', 'manila': 'Asia/Manila', 'philippines': 'Asia/Manila',
+        'kuala lumpur': 'Asia/Kuala_Lumpur', 'ho chi minh': 'Asia/Ho_Chi_Minh', 'hanoi': 'Asia/Ho_Chi_Minh',
+        'sydney': 'Australia/Sydney', 'melbourne': 'Australia/Melbourne', 'brisbane': 'Australia/Brisbane',
+        'perth': 'Australia/Perth', 'adelaide': 'Australia/Adelaide',
+        'auckland': 'Pacific/Auckland', 'wellington': 'Pacific/Auckland', 'new zealand': 'Pacific/Auckland',
+        'toronto': 'America/Toronto', 'ottawa': 'America/Toronto', 'montreal': 'America/Toronto',
+        'vancouver': 'America/Vancouver', 'calgary': 'America/Edmonton', 'edmonton': 'America/Edmonton',
+        'winnipeg': 'America/Winnipeg',
+        'mexico city': 'America/Mexico_City', 'mexico': 'America/Mexico_City',
+        'guadalajara': 'America/Mexico_City', 'cancun': 'America/Cancun', 'tijuana': 'America/Tijuana',
+        'sao paulo': 'America/Sao_Paulo', 'rio': 'America/Sao_Paulo', 'brazil': 'America/Sao_Paulo',
+        'buenos aires': 'America/Argentina/Buenos_Aires', 'argentina': 'America/Argentina/Buenos_Aires',
+        'santiago': 'America/Santiago', 'chile': 'America/Santiago', 'lima': 'America/Lima',
+        'bogota': 'America/Bogota', 'colombia': 'America/Bogota',
+        'dubai': 'Asia/Dubai', 'uae': 'Asia/Dubai', 'abu dhabi': 'Asia/Dubai',
+        'doha': 'Asia/Qatar', 'riyadh': 'Asia/Riyadh',
+        'mumbai': 'Asia/Kolkata', 'delhi': 'Asia/Kolkata', 'bangalore': 'Asia/Kolkata',
+        'india': 'Asia/Kolkata', 'karachi': 'Asia/Karachi', 'lahore': 'Asia/Karachi',
+        'tel aviv': 'Asia/Jerusalem', 'jerusalem': 'Asia/Jerusalem', 'haifa': 'Asia/Jerusalem',
+        'israel': 'Asia/Jerusalem',
+        'cairo': 'Africa/Cairo', 'egypt': 'Africa/Cairo', 'lagos': 'Africa/Lagos',
+        'nigeria': 'Africa/Lagos', 'nairobi': 'Africa/Nairobi', 'kenya': 'Africa/Nairobi',
+        'johannesburg': 'Africa/Johannesburg', 'cape town': 'Africa/Johannesburg',
+        'south africa': 'Africa/Johannesburg', 'casablanca': 'Africa/Casablanca',
+        'morocco': 'Africa/Casablanca'
     };
+
+    /**
+     * Longest key first, so "los angeles" beats "la" and "mexico city" beats "mexico";
+     * whole-word, so "atlanta" / "iceland" / "poland" / "milan" no longer contain "la".
+     */
+    const CITY_TZ_MATCHERS = Object.entries(CITY_TZ)
+        .sort((a, b) => b[0].length - a[0].length)
+        .map(([key, tz]) => ({
+            re: new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
+            tz
+        }));
 
     let clockTimer = null;
     let lastUserReceiptEl = null;
     let turnGen = 0;
 
-    function resolveTimeZone(location) {
-        const raw = String(location || '').trim();
-        if (raw) {
-            const lower = raw.toLowerCase();
-            for (const [key, tz] of Object.entries(CITY_TZ)) {
-                if (lower.includes(key)) return tz;
-            }
-            // Accept pasted IANA zones ("America/Los_Angeles")
-            try {
-                Intl.DateTimeFormat('en-US', { timeZone: raw }).format(new Date());
-                return raw;
-            } catch { /* fall through */ }
+    /** True when the runtime accepts this string as an IANA zone. */
+    function isValidTimeZone(name) {
+        const tz = String(name || '').trim();
+        if (!tz) return false;
+        try {
+            Intl.DateTimeFormat('en-US', { timeZone: tz }).format(new Date());
+            return true;
+        } catch {
+            return false;
         }
+    }
+
+    /** Best-effort IANA zone from a free-text location. '' when nothing matches. */
+    function inferTimeZoneFromLocation(location) {
+        const raw = String(location || '').trim();
+        if (!raw) return '';
+        for (const { re, tz } of CITY_TZ_MATCHERS) {
+            if (re.test(raw)) return tz;
+        }
+        // Accept a pasted IANA zone ("America/Los_Angeles")
+        if (isValidTimeZone(raw)) return raw;
+        return '';
+    }
+
+    function browserTimeZone() {
         try {
             return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
         } catch {
             return 'UTC';
         }
+    }
+
+    /**
+     * Her zone, in priority order:
+     *   1. `profile.timezone` — an explicit IANA zone chosen at character setup. Authoritative.
+     *   2. Inference from the free-text location, whole-word and longest-match-first.
+     *   3. The operator's browser zone, which is a guess and is only ever a last resort.
+     *
+     * Callers pass her location and may pass the profile record it came from; when they
+     * don't, the active character is used, which is what every existing call site wants.
+     */
+    function resolveTimeZone(location, profile) {
+        const record = profile || S()?.profile;
+        const explicit = String(record?.timezone || '').trim();
+        if (explicit && isValidTimeZone(explicit)) return explicit;
+        return inferTimeZoneFromLocation(location) || browserTimeZone();
     }
 
     function herNow() {
@@ -1222,6 +1321,9 @@
         bind,
         updateChrome,
         resolveTimeZone,
+        inferTimeZoneFromLocation,
+        isValidTimeZone,
+        browserTimeZone,
         herNow,
         formatClock,
         formatClockLong,
