@@ -90,6 +90,11 @@ An agent doing Phase 5 needs this list as much as the defect list.
   during the overhaul.
 - **The stepper**, the Protocol cards, the phone chrome, and the deck's persona/thermal/directives
   taxonomy — all listed in §3 as preserved.
+- **The delivery planner's defensive layers** (`immersion.js:926-1214`) — `resolveNarrativeTimeSkip`'s
+  refusal to snap a soft band into an apparent clock rewind, and `resolveStyle`'s repeated
+  `mustDeliver` clamps (it re-clamps after the presence conversions specifically because those can
+  reintroduce a withhold). Both read as over-cautious until you notice each guard is defending a real
+  failure the author already hit. Phase 7 splits this code; it should not simplify these away.
 
 ---
 
@@ -133,6 +138,8 @@ Everything here is a defect with a known fix and a known location. Finding IDs r
 | **B8** | **`STOP MIRAGE` kills any process on 8080** | It `taskkill`s whoever owns the port without checking it's Mirage. |
 | **N5** | **The body reference leaks between characters — and is saved onto the wrong one** (`characters-ui.js:104-135`) | `startNewCharacterDraft` calls `clearMasterFace()` but **never `clearBodyReference()`**, and `resetSimulationRuntime` doesn't touch it either — the only callers of `clearBodyReference` are Face Lock's explicit Clear button, its two error paths, and `resetSession()`. So starting a new character draft carries the *previous* character's body reference forward, it is used as the BODY proportions ref for image generation, and because `exportSnapshot` reads `state.masterBodyFile` at save time (`profile-store.js:94`) **it gets written onto the new character**. Cross-character contamination that persists to disk. |
 | **N4** | **Legacy migration overwrites all chats** (`chat-store.js:44-88`) | `migrateLegacyOnce` builds a *fresh* `{ characters: {} }` from the legacy `mirage_v2_sessions` key and `writeStore`s it — discarding whatever `mirage_v2_chats` currently holds. It runs on **every** `readStore()`, and it is only safe because it deletes the legacy key afterwards. If that key ever reappears — a restored backup, a synced profile, a partial import — the very next read silently destroys every chat. **This matters specifically because Phase 1 builds import.** Make it merge, and gate it on the target being empty. |
+| **N12** | **Hybrid never waits on the *model's* time jumps — half the mode's advertised behaviour is dead code** (`immersion.js:1282-1288` vs `:1337`, `:1401`) | The Settings option reads "Hybrid — fast texts, wait on time jumps" (`index.html:890`), and the module's own JSDoc says the same (`:215-219`). `planDelivery` computes `narrativeWaitMs = toRealWaitMs(timeSkipMs)` whenever pacing is hybrid **or** realtime — then hybrid unconditionally falls into the instant-like branch (`turnInstantLike = pacing !== 'realtime'`), which returns `narrativeWaitMs: 0` on both of its exits. The value is computed and thrown away every hybrid turn. `choreograph` (`:1541`) additionally gates on `!plan.instant`, so it is dead twice over. The inline comment at `:1336` — "narrativeWaitMs may still be > 0 for time jumps" — asserts the opposite of what the code does. **Half the feature does work:** operator-commanded skips (Time pass…, Jump to…, world skips) arm a real wall wait through `simulation.js:2572-2590`, which is why this has never looked completely broken. What silently does nothing is `delivery.timeSkipSec` — the model's own authored jumps, the ones that come with "she's been gone three hours" narration. Decide which is intended and make code, comment, JSDoc and Settings copy agree; if hybrid *should* wait, the fix is to compute the wait before the instant-like branch and let that branch return it. |
+| **N14** | **`lastTimeSkipMs` is never consumed on ditch-hold or streak-cap turns** (`immersion.js:2446-2459`) | `onTurnSettled` zeroes the post-skip flag — but only after two early returns: `if (isDitchHold()) return;` and `if (sheIsAtStreakCap() \|\| isUnresponsiveCap()) { … return; }`. Land a ≥20-minute skip into either state and the flag stays set indefinitely. Downstream that flag is not cosmetic: `planDelivery:1237` reads it as `landingAfterJump` and force-softens presence to **warm** — so she can never go cold again — and `mirage-prompt.js` keeps injecting `OUTFIT STALE` and `ENV: 3 hours passed — she SHOULD have left this room` on every subsequent turn, pushing a wardrobe and location change that already happened. Clear the flag before the early returns, or make it a timestamp that expires rather than a sticky number. |
 
 #### 1b — Cleanups, minutes each
 
@@ -165,11 +172,15 @@ find and start using.
 | **N10** | Photos are identified by `file.name` (`setup-face.js:161`, `:212`, `:328`). Two images with the same filename — `IMG_0001.jpg` being the obvious case — collide in selection state and in the `querySelector` lookup at `:129` |
 | **N11** | `restoreChatUi()` is async and called without `await` or `.catch` after deleting the active chat (`chats-ui.js:196`). Same family as D3 |
 | — | The saved-chats list reports `history.length` as "turns" (`chats-ui.js:84`), but history is capped at 100 — so every long chat reads "100 turns" forever |
+| **N13** | **Hebrew typo makes one question word unmatchable** (`immersion.js:917`). `lastUserNeedsReply` tests `/(איפה\|למה\|מתי\|מה\s\|מי\s\|איך\|הייכן)/` — `הייכן` has a doubled yod and is not a word; the formal "where" is `היכן`. Impact is bounded because line 912 already returns true on any `?`, so this only matters for a question typed without one — but that is exactly the case the Hebrew branch exists to catch, and the consequence is that she is allowed to ghost a direct question. Same line: `מה\s` requires trailing whitespace, so a message *ending* in `מה` never matches either |
+| **N15** | Redundant condition (`immersion.js:1059`): `if (coldEng \|\| coolEng)` where `coldEng` (engagement ≤ 25) already implies `coolEng` (≤ 45). Harmless, but it reads as if two bands are being handled when one is |
+| **N16** | **`delivery.style: 'slow'` is inert whenever she's warm** (`immersion.js:1412-1457`). The delay ladder checks presence *before* style, so `hot` and `warm` claim the reply before `else if (style === 'slow')` is ever reached. `hot` is fine — `resolveStyle:1154` explicitly vetoes `slow` at hot presence. `warm` is not vetoed, so a model-authored "take your time replying" turn gets the normal 2–22s warm pre-read and is indistinguishable from `normal`. Either veto `slow` at warm too, or let style win over presence for the styles the model explicitly asked for |
 
 **Done when:** a character in Atlanta shows Atlanta time · a `ghost_type` turn visibly explains itself
 with Developer Mode off · a pin during a ghost hold says so · a timeout says "timed out" · the proxy
 rejects an unknown host and requires a token · no API key appears in a URL · a character survives a
-cleared browser · every row in 1b is gone.
+cleared browser · Hybrid does what its own Settings line claims about time jumps · she can go cold
+again after a skip · every row in 1b is gone.
 
 ---
 
@@ -352,6 +363,13 @@ schedule should be X"* becomes an assertion that runs instantly. Every combinati
 and pacing mode gets verified in a fraction of a second, including the ones that currently take ten
 real minutes to observe once.
 
+**N12 is the argument for this phase, in one finding.** Hybrid computes a wall wait for the model's
+time jumps and then returns zero — the mode does half of what Settings says it does, and has since it
+shipped. Nothing threw, nothing logged, and no amount of playing the app surfaces it, because the
+only symptom is a wait that doesn't happen. A pure planner makes that assertable in one line:
+*"hybrid + `timeSkipSec: 7200` → schedule contains a wait"*. Fix N12 in Phase 1 as a behaviour bug,
+then let Phase 7 make the whole class of it impossible to reintroduce.
+
 **Done when:** the planner is pure and covered for every style × mode combination; the scheduler is
 the only place in the codebase where a timer exists; the behaviour recording is unchanged.
 
@@ -510,8 +528,9 @@ previous one to be finished perfectly — only finished enough that its tests pa
 
 ## 5. Review coverage — every finding tracked
 
-Every finding from `docs/PRODUCT_REVIEW.md`, and where it lands. Nothing is silently dropped; items
-deliberately not being fixed say so and say why.
+Every finding from `docs/PRODUCT_REVIEW.md`, plus the N-series found in the follow-up reading passes,
+and where each lands. Nothing is silently dropped; items deliberately not being fixed say so and say
+why.
 
 | ID | Finding | Lands in |
 |----|---------|----------|
@@ -560,6 +579,11 @@ deliberately not being fixed say so and say why.
 | N9 | `protocolBadge` unescaped in `innerHTML` | **Phase 1b** |
 | N10 | Photos identified by filename — duplicates collide | **Phase 1b** |
 | N11 | `restoreChatUi()` unawaited after deleting the active chat | **Phase 1b** |
+| N12 | **Hybrid never wall-waits on model-authored time jumps — computed then discarded** | **Phase 1a** |
+| N13 | Hebrew `הייכן` typo — the formal "where" can never match | **Phase 1b** |
+| N14 | **`lastTimeSkipMs` never cleared on ditch-hold / streak-cap turns — presence stuck warm, stale prompt injects** | **Phase 1a** |
+| N15 | Redundant `coldEng \|\| coolEng` | **Phase 1b** |
+| N16 | `delivery.style: 'slow'` inert at warm presence | **Phase 1b** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
 
 ### Review depth — stated honestly
@@ -572,17 +596,28 @@ this list is.
 `image-store.js`, `setup-face.js`, `characters-ui.js`, `chats-ui.js`, both `.bat` files — plus the
 turn pipeline, `applyTracking`, cancel/rollback, shot variance and chat/toast plumbing in
 `simulation.js`; the schema blocks, registries, awakening, `RENDER_DOCTRINE` and budget compressor in
-`mirage-prompt.js`; the wait primitives, `choreograph` and `cancelDelivery` in `immersion.js`; and the
-clock/timezone paths in `phone-ux.js`.
+`mirage-prompt.js`; the wait primitives, `choreograph`, `cancelDelivery`, `onTurnSettled` and the full
+delivery planner — `lastUserNeedsReply`, `resolveNarrativeTimeSkip`, `resolveStyle`, `planDelivery` —
+in `immersion.js`; and the clock/timezone paths in `phone-ux.js`.
 
 **Scanned by pattern, not read in full:** `setup-media.js`, `setup-protocol.js`, most of
 `setup-profile.js`, `user-profiles-ui.js`, `user-profile-store.js`, `debug-panel.js`, and the bulk of
 `chat-store.js`, `loyalty-ux.js`, `calendar.js` and `routine.js` — roughly **3,500 lines**.
 
 Nothing observed suggests defects in the scanned set, but "scanned" is not "reviewed". Every deep
-finding in this document — B00, B0, N4, N5 — came from reading, not scanning, so the honest
+finding in this document — B00, B0, N4, N5, N12, N14 — came from reading, not scanning, so the honest
 expectation is that more remain in those files. **Phase 2's failure-case suite is the instrument that
 finds them**, because it executes those paths rather than relying on anyone reading well.
+
+**The delivery-planner pass is now closed.** The earlier version of this document flagged
+`resolveStyle` / `planDelivery` as the highest-risk unread code in the project, on the reasoning that
+the two deepest bugs in the review (B00, B0) both came from exactly this kind of quiet-logic reading.
+That pass has been done: it returned N12–N16, of which **N12 and N14 are real behaviour defects** —
+one mode doing half of what it advertises, and a flag that never clears in two states. Both would have
+been effectively unfindable by playing the app, since neither throws, logs, or looks wrong on any
+single turn. The rest of `immersion.js` — `resolveNarrativeTimeSkip`'s clock-rewind guards in
+particular, and `resolveStyle`'s layered `mustDeliver` clamps — is careful, defensive, well-commented
+code, and is called out in §1 as work not to undo.
 
 **Also verified as *not* bugs**, so nobody re-investigates them: character deletion cleans up fully
 (`profile-store.js:168-178`); `#phoneTyping` is created on demand, not missing; there are no timer
