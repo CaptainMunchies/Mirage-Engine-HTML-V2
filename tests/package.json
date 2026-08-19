@@ -1,0 +1,16 @@
+{
+  "name": "mirage-engine-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Test harness for Mirage Engine. Lives here rather than at the repo root so the app itself stays no-build.",
+  "scripts": {
+    "test": "node run.js all",
+    "smoke": "node run.js smoke",
+    "record": "node run.js record",
+    "record:update": "node run.js record --update",
+    "failure": "node run.js failure"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  }
+}
