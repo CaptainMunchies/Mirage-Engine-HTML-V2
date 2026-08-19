@@ -41,9 +41,33 @@ async function startServer({ quiet = true } = {}) {
         return { origin: ORIGIN, borrowed: true, stop: async () => {} };
     }
 
+    // Same problem the launcher had: `python3` is not what Windows calls it, and a
+    // machine may only have one of these. Take the first that reports 3.8+.
+    const { execFileSync } = require('child_process');
+    const CANDIDATES = process.platform === 'win32'
+        ? [['py', ['-3']], ['python', []], ['python3', []]]
+        : [['python3', []], ['python', []], ['py', ['-3']]];
+
+    let python = null;
+    for (const [cmd, prefix] of CANDIDATES) {
+        try {
+            execFileSync(cmd, [...prefix, '-c', 'import sys; sys.exit(0 if sys.version_info >= (3,8) else 1)'],
+                { stdio: 'ignore' });
+            python = [cmd, prefix];
+            break;
+        } catch { /* try the next one */ }
+    }
+    if (!python) {
+        throw new Error(
+            'No usable Python 3.8+ found (tried py -3, python, python3).\n'
+            + 'Mirage needs it to serve the app. Install from https://www.python.org/downloads/ '
+            + 'and tick "Add python.exe to PATH".'
+        );
+    }
+
     // Keep stderr so a genuine startup failure is reported, not guessed at.
     const stderr = [];
-    const child = spawn('python3', ['mirage_server.py'], {
+    const child = spawn(python[0], [...python[1], 'mirage_server.py'], {
         cwd: REPO_ROOT,
         stdio: quiet ? ['ignore', 'ignore', 'pipe'] : 'inherit',
         detached: false

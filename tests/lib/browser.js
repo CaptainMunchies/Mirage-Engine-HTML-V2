@@ -10,9 +10,27 @@
 const { chromium } = require('playwright');
 const { determinismScript } = require('./determinism');
 
-// Pre-installed by the environment; a version-matched download is not available here.
-const CHROME_PATH = process.env.MIRAGE_CHROME
-    || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const fs = require('fs');
+
+/**
+ * Which Chromium to drive.
+ *
+ * Normally none: Playwright downloads its own on `npm install` and finds it itself,
+ * which is what happens on a developer machine. An explicit path is only needed in
+ * environments that pre-install a browser and block the download (CI images, some
+ * sandboxes), so it is used when MIRAGE_CHROME is set or when that pre-installed
+ * copy is actually present.
+ */
+function resolveChromePath() {
+    if (process.env.MIRAGE_CHROME) return process.env.MIRAGE_CHROME;
+    const preinstalled = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+    try {
+        if (fs.existsSync(preinstalled)) return preinstalled;
+    } catch { /* fall through to Playwright's own */ }
+    return null;
+}
+
+const CHROME_PATH = resolveChromePath();
 
 const ENV_NOISE = /date\.nager\.at|hebcal\.com|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED|Failed to load resource/;
 
@@ -22,7 +40,14 @@ const SAFETY_SEED = {
 };
 
 async function launchBrowser() {
-    return chromium.launch({ executablePath: CHROME_PATH });
+    try {
+        return await chromium.launch(CHROME_PATH ? { executablePath: CHROME_PATH } : {});
+    } catch (err) {
+        throw new Error(
+            `Could not launch Chromium: ${err.message}\n`
+            + 'If this says the browser is missing, run:  npx playwright install chromium'
+        );
+    }
 }
 
 /**

@@ -7,19 +7,44 @@ Everything runs with **no API key and no credits** — mock mode supplies the th
 and image halves, and the real `mirage_server.py` serves the app so the proxy,
 IndexedDB and module load order are all exercised for real.
 
-```bash
-cd tests
-npm install          # playwright only; the app itself stays no-build
+## First-time setup
 
+The app needs only Python. **The tests also need Node.js** — that is the one new
+prerequisite. Install it from <https://nodejs.org> (any current LTS) if you don't
+have it, then:
+
+```
+cd tests
+npm install                    # Playwright
+npx playwright install chromium   # the browser it drives (~150 MB, once)
+```
+
+On Windows use the same commands in Command Prompt or PowerShell from the repo
+folder. Python is found automatically (`py -3`, `python`, `python3` — whichever
+answers first), and so is Chromium.
+
+## Running
+
+```
 node run.js smoke            # Layer 1 — ~30s, the one to run constantly
 node run.js record           # Layer 2 — compare against the committed baselines
 node run.js record --update  # Layer 2 — re-record (deliberate act; read the diff)
 node run.js failure          # Layer 3 — failure and edge cases
-node run.js all              # everything
+node run.js all              # everything, ~4 minutes
 ```
+
+The runner starts `mirage_server.py` itself and stops it afterwards. If Mirage is
+already open it borrows that server and leaves it running, so you don't have to
+close the app first.
 
 Exit code is 0 unless something failed that was *not* expected to. A known-red
 Layer 3 test does not fail the run.
+
+What a healthy run ends with:
+
+```
+TOTAL: 44 passed, 3 known-red  (47 total)
+```
 
 ---
 
