@@ -79,9 +79,11 @@
 
             const meta = document.createElement('div');
             meta.className = 'chat-save-meta';
+            // protocolBadge was the one value in this template that went in unescaped,
+            // between a carefully escaped label and a carefully escaped preview.
             meta.innerHTML = `
                 <strong>${MirageUI.escapeHtml(chat.label || 'Untitled chat')}</strong>
-                <span>${protocolBadge(chat)} · ${chat.history?.length || 0} turns · ${formatDate(chat.updatedAt)}</span>
+                <span>${MirageUI.escapeHtml(protocolBadge(chat))} · ${MirageChatStore.formatTurnCount(chat)} · ${formatDate(chat.updatedAt)}</span>
                 <p class="chat-save-preview">${MirageUI.escapeHtml(String(preview || '').slice(0, 120))}</p>
             `;
 
@@ -178,11 +180,15 @@
         }
     }
 
-    function deleteChat(chatId, label) {
+    async function deleteChat(chatId, label) {
         const key = charKey();
         if (!key) return;
         const name = label || 'this chat';
-        if (!confirm(`Delete saved chat “${name}”?`)) return;
+        if (!confirm(
+            `Delete saved chat “${name}”?\n\n`
+            + 'Its messages and any photos generated in it are removed permanently. '
+            + 'Export the character from Settings first if you might want it back.'
+        )) return;
 
         const wasActive = S().session.activeChatId === chatId;
         MirageChatStore.deleteChat(key, chatId);
@@ -193,7 +199,9 @@
                 MirageChatStore.setActiveChat(S(), remaining[0].id);
                 if (S().session.phase === 'active') {
                     MirageSimulation.resetChatUi?.();
-                    MirageSimulation.restoreChatUi?.();
+                    // restoreChatUi is async — unawaited it raced the renderList below
+                    // and could reject with nobody listening.
+                    await MirageSimulation.restoreChatUi?.();
                 }
             } else {
                 S().resetSimulationRuntime?.({ keepProtocol: true });

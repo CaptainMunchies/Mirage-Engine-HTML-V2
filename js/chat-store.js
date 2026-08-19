@@ -146,6 +146,18 @@
         })}`;
     }
 
+    /**
+     * "12 turns" — from the running total where a chat has one, falling back to the
+     * (capped) history length for chats saved before turnCount existed.
+     */
+    function formatTurnCount(chat) {
+        const stored = Number(chat?.turnCount) || 0;
+        const fallback = Array.isArray(chat?.history) ? chat.history.length : 0;
+        const n = Math.max(stored, fallback);
+        const approx = !stored && fallback >= MAX_HISTORY ? '+' : '';
+        return `${n}${approx} turn${n === 1 ? '' : 's'}`;
+    }
+
     function chatHasContent(chat) {
         return !!(chat?.lastTurn?.ai || (Array.isArray(chat?.history) && chat.history.length));
     }
@@ -837,12 +849,31 @@
             // Text-only turns update lastTurn / history but do not consume an image slot.
         }
 
+        // history is capped at MAX_HISTORY, so its length stops being a turn count once
+        // a chat gets long — the saved-chats list read "100 turns" forever. Count the
+        // turns that are new since the last save (by their own timestamps) and keep a
+        // running total that survives the cap. Chats that were already past 100 before
+        // this shipped start their count from what history still holds, so their first
+        // number is a floor rather than a total.
+        const hist = Array.isArray(state.session.history) ? state.session.history : [];
+        const countedThrough = Number(existing?.lastCountedAt) || 0;
+        const addedTurns = countedThrough
+            ? hist.filter(h => (Number(h.at) || 0) > countedThrough).length
+            : hist.length;
+        const turnCount = (Number(existing?.turnCount) || 0) + addedTurns;
+        const lastCountedAt = hist.reduce(
+            (max, h) => Math.max(max, Number(h.at) || 0),
+            countedThrough
+        );
+
         const chat = {
             id: chatId,
             label: existing?.label || defaultChatLabel(),
             createdAt: existing?.createdAt || new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             ...exportChatFields(state),
+            turnCount,
+            lastCountedAt,
             history: stripHistory(state.session.history),
             uiLog: stripUiLog(state.session.uiLog, state.session.history),
             turnImages,
@@ -1016,6 +1047,7 @@
         characterKey,
         listChats,
         importChats,
+        formatTurnCount,
         getChat,
         getActiveChat,
         getActiveChatId,

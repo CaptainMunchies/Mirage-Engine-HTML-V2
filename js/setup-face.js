@@ -126,8 +126,10 @@
                 img.src = dedicatedUrl;
                 name.textContent = selectedFile.name;
             } else {
-                const opt = document.querySelector(`.face-option[data-name="${CSS.escape(selectedFile.name)}"] img`);
-                img.src = opt?.src || trackGridUrl(URL.createObjectURL(selectedFile));
+                const card = [...document.querySelectorAll('.face-option')]
+                    .find(el => el.mirageFile === selectedFile);
+                img.src = card?.querySelector('img')?.src
+                    || trackGridUrl(URL.createObjectURL(selectedFile));
                 name.textContent = selectedFile.name;
             }
         } else {
@@ -158,7 +160,7 @@
         selectedSource = source;
 
         document.querySelectorAll('.face-option').forEach(el => {
-            el.classList.toggle('selected', source === 'media' && el.dataset.name === file.name);
+            el.classList.toggle('selected', source === 'media' && el.mirageFile === file);
         });
 
         updateSelectionPreview();
@@ -192,6 +194,8 @@
             card.className = 'face-option';
             card.dataset.source = 'media';
             card.dataset.name = file.name;
+            // Identity, not filename: duplicates like IMG_0001.jpg collide by name.
+            card.mirageFile = file;
 
             const img = document.createElement('img');
             img.src = trackGridUrl(URL.createObjectURL(file));
@@ -209,7 +213,7 @@
 
         if (selectedSource === 'media' && selectedFile) {
             document.querySelectorAll('.face-option').forEach(el => {
-                el.classList.toggle('selected', el.dataset.name === selectedFile.name);
+                el.classList.toggle('selected', el.mirageFile === selectedFile);
             });
         }
 
@@ -317,7 +321,7 @@
         const images = getImageFiles();
         if (emptyHint) emptyHint.hidden = images.length > 0;
 
-        const selectedName = S().masterBodyFile?.name || '';
+        const selectedBody = S().masterBodyFile || null;
 
         images.forEach((file) => {
             const card = document.createElement('button');
@@ -325,7 +329,8 @@
             card.className = 'face-option';
             card.dataset.source = 'media';
             card.dataset.name = file.name;
-            card.classList.toggle('selected', !!selectedName && file.name === selectedName);
+            card.mirageFile = file;
+            card.classList.toggle('selected', !!selectedBody && file === selectedBody);
 
             const img = document.createElement('img');
             img.src = trackBodyGridUrl(URL.createObjectURL(file));

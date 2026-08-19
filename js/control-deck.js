@@ -21,8 +21,8 @@
         {
             label: 'Change outfit',
             cmd: '/change outfit',
-            arg: 'Describe the new outfit',
-            requireArg: true
+            arg: 'Describe the new outfit — leave blank and she picks',
+            requireArg: false
         },
         {
             label: 'God mode…',
@@ -181,7 +181,14 @@
         const value = input?.value.trim() || '';
         if (!pendingArg) return;
         const optional = pendingArg.requireArg === false;
-        if (!optional && !value) return;
+        if (!optional && !value) {
+            MirageUI?.toast?.(
+                `${pendingArg.label} needs something to work with — type it or press Escape.`,
+                'error'
+            );
+            input?.focus();
+            return;
+        }
         const cmd = value ? `${pendingArg.cmd} ${value}` : pendingArg.cmd;
         closeArgPrompt();
         send(cmd);

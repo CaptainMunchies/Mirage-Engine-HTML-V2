@@ -232,7 +232,20 @@
     /**
      * Persist face/body to IndexedDB, then write a lean localStorage snapshot.
      */
-    async function saveWithAnchors({ id, label, snapshot, state }) {
+    /**
+     * Persist the visual anchors, then write the record — once.
+     *
+     * `enrich` runs after the anchors land and before the single localStorage write,
+     * and receives the id the record will have. It exists so callers that need to
+     * write other blobs first (the photo library, whose metadata belongs in this same
+     * snapshot) can fold their result in rather than issuing a *second* save. Two
+     * writes meant a quota failure on the second left a half-saved character: anchors
+     * on disk, metadata missing.
+     *
+     * @param {{id?: string, label?: string, snapshot: object, state?: object,
+     *          enrich?: (entryId: string, snapshot: object) => Promise<object>|object}} args
+     */
+    async function saveWithAnchors({ id, label, snapshot, state, enrich }) {
         const err = validateSnapshot(snapshot, state);
         if (err) throw new Error(err);
 
@@ -249,14 +262,19 @@
             else if (!state?.masterBodyFile && !state?.masterBodyBase64) bodyMeta = null;
         }
 
+        let finalSnapshot = {
+            ...snapshot,
+            masterFace: faceMeta,
+            masterBody: bodyMeta
+        };
+        if (typeof enrich === 'function') {
+            finalSnapshot = (await enrich(entryId, finalSnapshot)) || finalSnapshot;
+        }
+
         return save({
             id: entryId,
             label: displayName,
-            snapshot: {
-                ...snapshot,
-                masterFace: faceMeta,
-                masterBody: bodyMeta
-            }
+            snapshot: finalSnapshot
         });
     }
 

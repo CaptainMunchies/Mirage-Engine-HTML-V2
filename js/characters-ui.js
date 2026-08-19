@@ -203,15 +203,24 @@
                 : `${chats.length} saved chats on file. Start fresh or pick up an existing conversation.`;
         }
 
-        const badge = MirageSetupProtocol?.formatProtocolLabel?.(latest.protocol, latest.mode) || latest.mode || 'Chat';
-        const preview = latest.lastTurn?.ai
-            || (latest.history?.length ? latest.history[latest.history.length - 1].ai : 'Empty chat');
-
-        if (latestTag) latestTag.textContent = badge;
-        if (latestMeta) {
-            latestMeta.textContent = `“${(latest.label || 'Untitled').slice(0, 48)}” · ${latest.history?.length || 0} turns · ${String(preview || '').slice(0, 80)}`;
-        }
+        // The null check used to sit three lines below the first dereference of
+        // `latest`. Safe only because the one caller checks chatCount > 0 first —
+        // a second caller would throw here. Check before reading, not after.
         if (continueBtn) continueBtn.disabled = !latest;
+        if (latest) {
+            const badge = MirageSetupProtocol?.formatProtocolLabel?.(latest.protocol, latest.mode)
+                || latest.mode || 'Chat';
+            const preview = latest.lastTurn?.ai
+                || (latest.history?.length ? latest.history[latest.history.length - 1].ai : 'Empty chat');
+            if (latestTag) latestTag.textContent = badge;
+            if (latestMeta) {
+                latestMeta.textContent = `“${(latest.label || 'Untitled').slice(0, 48)}” · `
+                    + `${MirageChatStore.formatTurnCount(latest)} · ${String(preview || '').slice(0, 80)}`;
+            }
+        } else {
+            if (latestTag) latestTag.textContent = '';
+            if (latestMeta) latestMeta.textContent = 'No saved chats yet.';
+        }
 
         modal.hidden = false;
         modal.dataset.characterId = entry.id;
@@ -373,36 +382,32 @@
 
         try {
             const priorKey = MirageChatStore.characterKey(S());
-            let entry = typeof MirageProfileStore.saveWithAnchors === 'function'
-                ? await MirageProfileStore.saveWithAnchors({
-                    id: saveId,
-                    label: saveLabel,
-                    snapshot: snap,
-                    state: S()
-                })
-                : MirageProfileStore.save({
-                    id: saveId,
-                    label: saveLabel,
-                    snapshot: snap
-                });
+            const canSavePhotos = typeof MirageMediaLibrary?.savePhotosFromMediaFiles === 'function';
+            let mediaMeta = null;
 
-            if (typeof MirageMediaLibrary?.savePhotosFromMediaFiles === 'function') {
-                const meta = await MirageMediaLibrary.savePhotosFromMediaFiles(
-                    entry.id,
-                    S().mediaFiles
-                );
-                snap.mediaLibrary = meta;
-                snap.masterFace = entry.snapshot?.masterFace || snap.masterFace;
-                snap.masterBody = entry.snapshot?.masterBody || snap.masterBody;
-                entry = MirageProfileStore.save({
-                    id: entry.id,
-                    label: entry.label,
-                    snapshot: snap
-                });
+            // One localStorage write, not two: the photo metadata is folded into the
+            // same snapshot the record is saved from. Previously a quota failure on
+            // the second write left the anchors persisted and the metadata lost.
+            const entry = await MirageProfileStore.saveWithAnchors({
+                id: saveId,
+                label: saveLabel,
+                snapshot: snap,
+                state: S(),
+                async enrich(entryId, resolvedSnapshot) {
+                    if (!canSavePhotos) return resolvedSnapshot;
+                    mediaMeta = await MirageMediaLibrary.savePhotosFromMediaFiles(
+                        entryId,
+                        S().mediaFiles
+                    );
+                    return { ...resolvedSnapshot, mediaLibrary: mediaMeta };
+                }
+            });
+
+            if (mediaMeta) {
                 const photos = (typeof MirageMediaLibrary.listPhotos === 'function'
                     ? MirageMediaLibrary.listPhotos(S().mediaFiles)
                     : S().mediaFiles.filter(f => String(f.type || '').startsWith('image/')));
-                S().mediaLibrary = meta.map((m, i) => ({
+                S().mediaLibrary = mediaMeta.map((m, i) => ({
                     ...m,
                     file: photos[i] || null
                 })).filter(p => p.file);
