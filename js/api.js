@@ -160,29 +160,54 @@
         return /prohibited use policy|sensitive words|could not be submitted|content.?filter|blocked by safety|violat\w* (google'?s |the )?policy|generative ai prohibited|responsible ai|harm category|safety.?block|i cannot fulfill|i can'?t fulfill|i am unable to|i'?m unable to|unable to generate|cannot generate (sexually|explicit)|sexually (explicit|suggestive) (content|roleplay|imagery)|won'?t generate|will not generate|as an ai (language )?model|against (my|the) (guidelines|policies)/i.test(s);
     }
 
+    function safetyError(text) {
+        const err = new Error(String(text || '').trim().slice(0, 320));
+        err.code = 'SAFETY';
+        err.rawPreview = String(text || '').slice(0, 400);
+        return err;
+    }
+
+    /** Does this parsed object look like one of our turns, rather than provider prose? */
+    function looksLikeTurnPayload(parsed) {
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false;
+        return typeof parsed.characterResponse === 'string'
+            || typeof parsed.response === 'string'
+            || (parsed.tracking && typeof parsed.tracking === 'object')
+            || (parsed.delivery && typeof parsed.delivery === 'object');
+    }
+
+    /**
+     * Parse first, classify second.
+     *
+     * The refusal heuristic used to run on the raw text *before* JSON.parse, and it
+     * matches phrases like "i'm unable to" and "won't generate" — which a character
+     * says in character all the time ("i'm unable to even rn 😭"). A perfectly valid
+     * turn was being reported as a provider refusal, burning the softened-retry pass
+     * and sometimes failing the turn outright.
+     */
     function parseJsonResponse(text) {
-        if (looksLikeSafetyRejection(text)) {
-            const err = new Error(String(text || '').trim().slice(0, 320));
-            err.code = 'SAFETY';
-            err.rawPreview = String(text || '').slice(0, 400);
-            throw err;
-        }
         const candidate = extractJsonPayload(text);
+        let parsed;
         try {
-            return JSON.parse(candidate);
-        } catch (e) {
-            // Refusal prose often isn't valid JSON — reclassify instead of "malformed JSON"
+            parsed = JSON.parse(candidate);
+        } catch {
+            // Not JSON at all. Refusal prose is the usual cause, so say so when it
+            // reads like one rather than blaming the model's JSON.
             if (looksLikeSafetyRejection(candidate) || looksLikeSafetyRejection(text)) {
-                const err = new Error(String(text || candidate || '').trim().slice(0, 320));
-                err.code = 'SAFETY';
-                err.rawPreview = String(text || '').slice(0, 400);
-                throw err;
+                throw safetyError(text || candidate);
             }
             const err = new Error('Thinking model returned invalid JSON.');
             err.code = 'JSON_PARSE';
             err.rawPreview = String(text || '').slice(0, 400);
             throw err;
         }
+
+        // It parsed. The heuristic is only safe now, and only when the payload isn't
+        // actually a turn — a provider can still refuse in well-formed JSON.
+        if (!looksLikeTurnPayload(parsed) && looksLikeSafetyRejection(text)) {
+            throw safetyError(text);
+        }
+        return parsed;
     }
 
     function extractInteractionText(data) {
@@ -337,7 +362,10 @@
                 throw wrapFetchError(err, context, { cancelled: true });
             }
             if (err.name === 'AbortError' && timeoutController?.signal?.aborted) {
-                return wrapFetchError(err, `${context}: timed out after 5 minutes — Nano Banana can be slow; try Nano Banana 2 Lite for faster tests`);
+                // `return` here resolved the call *with* an Error object, so the caller
+                // found no image and reported "the API completed but no image data came
+                // back" — discarding the one message that says what actually happened.
+                throw wrapFetchError(err, `${context}: timed out after 5 minutes — Nano Banana can be slow; try Nano Banana 2 Lite for faster tests`);
             }
             throw wrapFetchError(err, context);
         } finally {
