@@ -43,6 +43,34 @@
         return cut.trim();
     }
 
+    /**
+     * saveActiveChat is async, so `try { save() } catch {}` cannot catch a quota
+     * failure — it becomes an unhandled rejection and the operator is told nothing
+     * while turns quietly stop persisting. Every fire-and-forget save goes through
+     * here so a full disk reaches the storage-full dialog instead of the void.
+     */
+    function saveChatQuietly(state, turnMeta) {
+        try {
+            const result = MirageChatStore.saveActiveChat?.(state, turnMeta);
+            if (result && typeof result.catch === 'function') {
+                result.catch(reportSaveFailure);
+            }
+            return result;
+        } catch (err) {
+            reportSaveFailure(err);
+            return null;
+        }
+    }
+
+    function reportSaveFailure(err) {
+        if (err?.code === 'STORAGE_QUOTA' || err?.name === 'QuotaExceededError') {
+            MirageUI?.showStorageFullDialog?.({ context: 'chat' });
+            return;
+        }
+        console.warn('[Mirage] Could not save chat progress', err);
+        MirageUI?.toast?.('Could not save chat progress — see the browser console.', 'error');
+    }
+
     function captureTurnCheckpoint({ userText = null } = {}) {
         const sess = S().session;
         const log = document.getElementById('chatLog');
@@ -565,7 +593,7 @@
         appendSystemNote(notes[key] || 'Clock updated.', { essential: true });
         MiragePhoneUX?.syncClockChrome?.();
         MiragePhoneUX?.updateChrome?.();
-        try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+        saveChatQuietly(S());
         MirageImmersion?.catchUpAfterAbsence?.();
         MirageImmersion?.resumeQuietChase?.();
         updateHud();
@@ -1031,7 +1059,7 @@
             uiLogSaveTimer = null;
         }
         try {
-            MirageChatStore.saveActiveChat?.(S())?.catch?.(() => {});
+            saveChatQuietly(S());
         } catch { /* ignore */ }
     }
 
@@ -2610,7 +2638,7 @@
         }
 
         try {
-            MirageChatStore.saveActiveChat?.(S(), {
+            saveChatQuietly(S(), {
                 lastUser: `[${skip.kind || 'world_skip'}]`,
                 lastAi: '',
                 lastMode: sess.mode,
@@ -2713,7 +2741,7 @@
         }
 
         try {
-            MirageChatStore.saveActiveChat?.(S(), {
+            saveChatQuietly(S(), {
                 lastUser: '[time_pass]',
                 lastAi: '',
                 lastMode: sess.mode,
@@ -3077,7 +3105,7 @@
                 title: isSafety ? 'Blocked by safety filter' : (info.toast || 'Turn failed'),
                 body: info.chat
             });
-            try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+            saveChatQuietly(S());
         }
         MirageUI.toast(info.toast, 'error', 8000);
         logDevTurn('close', {
@@ -4469,7 +4497,7 @@
                         at: chatStampMs(),
                         mode: 'DM'
                     });
-                    try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+                    saveChatQuietly(S());
                 }
                 MirageImmersion?.handleIgnoreAftermath?.(kind, {
                     silenceSimMs: beat?.silenceSimMs || plan?.silenceSimMs || null,
@@ -5219,6 +5247,7 @@
         appendCaption,
         appendSystemNote,
         appendDebugDecision,
+        saveChatQuietly,
         syncChatDevVisibility,
         refreshChatTimestamps,
         clearSceneContinuity,

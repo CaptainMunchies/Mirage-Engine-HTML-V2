@@ -200,6 +200,15 @@ again after a skip · every row in 1b is gone.
 
 ### Phase 2 — Test foundation · ~1–1.5 weeks
 
+> **Status: done.** Lives in `tests/`, with its own `package.json` so the app stays no-build.
+> `node run.js smoke | record | failure | all`. 47 tests: 9 smoke, 4 recorded scenarios,
+> 34 failure cases — 44 green and 3 known-red, each naming the phase that closes it. Everything
+> runs with no API key and no credits. `tests/README.md` carries the operating instructions.
+>
+> Building it found three defects that reading had not: **N18** (server restart refused for a
+> full minute), **N19** (the model can override operator-owned mode) and **N20** (a full disk
+> silently stopped saving turns). N18 and N20 are fixed; N19 is one of the known-red tests.
+
 Three distinct layers. Briefed as three, not one — a single "extensive test suite" instruction
 produces one sprawling brittle file.
 
@@ -225,7 +234,14 @@ The failure surface, all testable with no API:
 - **Rules** — unknown command; bad argument; empty message; reply hitting the character cap; the 5-unanswered credit guard; ledger past 8 items; awakening at 100; thermal pin expiry; outfit lock vs change request; no face reference; body reference on a single-image model
 
 **Done when:** the three layers run on demand, the recording is committed as the baseline, and the
-failure suite has known-red tests for the paths Phase 1 didn't cover.
+failure suite has known-red tests for the paths Phase 1 didn't cover. — **All three met.**
+
+Two notes for whoever runs this next. The determinism layer (seeded PRNG, fake clock, pinned
+locale and timezone) is installed *from the test side only*: the engine is not modified and does
+not know it is being observed, because a test hook inside the engine is one more thing that can
+drift from what ships. And Layer 2's value depends entirely on reading the diff before running
+`--update` — a baseline re-recorded without looking is worse than no baseline, because it
+converts a caught regression into a committed one.
 
 ---
 
@@ -599,6 +615,9 @@ why.
 | N15 | Redundant `coldEng \|\| coolEng` | **Phase 1b — done** |
 | N16 | `delivery.style: 'slow'` inert at warm presence | **Phase 1b — done** |
 | N17 | **Mock delivery cycle dead outside Realtime — blocks Phase 2's deterministic transcripts** | **Phase 1b — done** |
+| N18 | **Restarting the server failed for a full minute** — `mirage_server.py` set `allow_reuse_address = False`, so a rebind was refused for the whole `TIME_WAIT` window while `bind_server` gave up after 5s. Stop-then-start simply failed. It bought nothing: on Linux `SO_REUSEADDR` does not permit two listeners on one port, so an already-running Mirage is still detected | **Phase 2 — done** |
+| N19 | **The model can put the app into Story mode on its own.** `applyTracking` states persona and mode are client-owned and deliberately ignores them — then `simulation.js:4374` honours `tracking.mode === 'STORY'` anyway, flipping the session and the card chrome. Operator authority is a §1 guardrail, and this is the one place a model decision overrides it | **Phase 3** (known-red test exists) |
+| N20 | **A full disk stopped saving turns silently.** `saveActiveChat` is `async`, and 7 call sites wrapped it in a *synchronous* `try/catch`, which cannot catch a rejection — so a quota failure became an unhandled rejection and the storage-full dialog the review verified as "real and wired" was unreachable from those paths. Same shape as D3, which the review caught in only one of its instances | **Phase 2 — done** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
 
 ### Review depth — stated honestly
@@ -623,6 +642,11 @@ Nothing observed suggests defects in the scanned set, but "scanned" is not "revi
 finding in this document — B00, B0, N4, N5, N12, N14 — came from reading, not scanning, so the honest
 expectation is that more remain in those files. **Phase 2's failure-case suite is the instrument that
 finds them**, because it executes those paths rather than relying on anyone reading well.
+
+That prediction held. Building Phase 2 surfaced three defects no amount of reading had caught —
+N18 (server restart), N19 (the model overriding operator-owned mode) and N20 (silent save failure on
+a full disk) — two of them found by tests written to assert intended behaviour rather than to
+describe current behaviour.
 
 **The delivery-planner pass is now closed.** The earlier version of this document flagged
 `resolveStyle` / `planDelivery` as the highest-risk unread code in the project, on the reasoning that

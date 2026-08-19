@@ -114,6 +114,75 @@ async function seedCharacter(page, overrides = {}) {
     }, overrides);
 }
 
+/**
+ * Make the thinking model return exactly this on the next turn.
+ *
+ * Wraps MirageMockAPI.mockThinkingGenerate, which is what api.js dispatches to when
+ * mock thinking is on. Injecting here rather than at the fetch layer means the reply
+ * travels the same parse → classify → applyTracking path a real one would.
+ *
+ * @param {string|null} raw the literal text the "model" returns; null restores the mock
+ * @param {{times?: number, throws?: {message: string, code?: string}}} [opts]
+ */
+async function stubThinking(page, raw, opts = {}) {
+    await page.evaluate(([body, o]) => {
+        const M = MirageMockAPI;
+        if (!M.__realThinking) M.__realThinking = M.mockThinkingGenerate;
+        if (body === null && !o.throws) {
+            M.mockThinkingGenerate = M.__realThinking;
+            return;
+        }
+        let left = o.times ?? Infinity;
+        M.mockThinkingGenerate = async function (args) {
+            if (left <= 0) return M.__realThinking.call(this, args);
+            left -= 1;
+            if (o.throws) {
+                const err = new Error(o.throws.message);
+                if (o.throws.code) err.code = o.throws.code;
+                if (o.throws.name) err.name = o.throws.name;
+                throw err;
+            }
+            return body;
+        };
+    }, [raw, opts]);
+}
+
+/** Same idea for the image half. */
+async function stubImage(page, { throws = null, dataUrl = null } = {}) {
+    await page.evaluate(([o]) => {
+        const M = MirageMockAPI;
+        if (!M.__realImage) M.__realImage = M.mockImageGenerate;
+        if (!o.throws && !o.dataUrl) {
+            M.mockImageGenerate = M.__realImage;
+            return;
+        }
+        M.mockImageGenerate = async function () {
+            if (o.throws) {
+                const err = new Error(o.throws.message);
+                if (o.throws.code) err.code = o.throws.code;
+                if (o.throws.name) err.name = o.throws.name;
+                throw err;
+            }
+            return o.dataUrl;
+        };
+    }, [{ throws, dataUrl }]);
+}
+
+/** A well-formed turn payload, with fields overridden for a specific test. */
+function turnPayload(over = {}) {
+    return JSON.stringify({
+        tracking: {
+            persona: 'Standard', mode: 'DM', outfit: 'casual day look', env: 'her place',
+            arousal: 30, tease: 0, awareness: 20, thermal: 'Normal',
+            mood: 'Warm', moodIntensity: 1, engagement: 60,
+            ...(over.tracking || {})
+        },
+        characterResponse: 'hey you',
+        delivery: { style: 'normal', ...(over.delivery || {}) },
+        ...Object.fromEntries(Object.entries(over).filter(([k]) => k !== 'tracking' && k !== 'delivery'))
+    });
+}
+
 /** Run one turn and wait for it to fully settle. */
 async function runTurn(page, text) {
     await page.evaluate(async (t) => {
@@ -127,4 +196,8 @@ async function runTurn(page, text) {
     await page.waitForTimeout(80);
 }
 
-module.exports = { launchBrowser, openApp, seedCharacter, runTurn, CHROME_PATH, ENV_NOISE };
+module.exports = {
+    launchBrowser, openApp, seedCharacter, runTurn,
+    stubThinking, stubImage, turnPayload,
+    CHROME_PATH, ENV_NOISE
+};

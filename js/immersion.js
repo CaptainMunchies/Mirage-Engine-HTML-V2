@@ -622,7 +622,7 @@
         sess.clockResumeHold = { gapMs: gap, at: Date.now() };
         clearProactive();
         clearNoReplyWatch();
-        try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+        MirageSimulation?.saveChatQuietly?.(S());
         MirageSimulation?.showClockResumeOverlay?.();
         return true;
     }
@@ -1932,7 +1932,7 @@
         if (typeof MirageRoutine?.stampFromClock === 'function') {
             try { MirageRoutine.stampFromClock(sess); } catch { /* ignore */ }
         }
-        try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+        MirageSimulation?.saveChatQuietly?.(S());
     }
 
     function setComeBackHold(reason, outcome) {
@@ -1948,7 +1948,7 @@
             outcome: outcome || 'follow_up',
             at: simNowMs()
         };
-        try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+        MirageSimulation?.saveChatQuietly?.(S());
     }
 
     function clearUnreadAftermath() {
@@ -2544,7 +2544,7 @@
         if (typeof MirageLoyaltyUX?.decayEngagementForSilence !== 'function') return null;
         const result = MirageLoyaltyUX.decayEngagementForSilence(sess);
         if (result?.changed) {
-            try { MirageChatStore.saveActiveChat?.(S()); } catch { /* ignore */ }
+            MirageSimulation?.saveChatQuietly?.(S());
             try { MirageSimulation?.updateHud?.(); } catch { /* ignore */ }
         }
         return result;
