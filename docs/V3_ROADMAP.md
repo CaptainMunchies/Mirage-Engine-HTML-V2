@@ -34,8 +34,9 @@ it's what stops v3 sprawling.
 | UI overhaul — see §3 | UI brief | One thread instead of two; Immersion + Director modes; a large-screen layout the CSS has never had |
 | Event log — *diary structure only* | Blueprint §3.2 | Consistency, structure, real undo |
 | Split the waiting logic | Blueprint §3.4 | Skip Wait proves a wait *can* be skipped, not that its length was right — only the split makes that testable |
-| Types — gradual, contract first | Blueprint §5.1 | Guardrails where an agent is most likely to slip |
+| Types — gradual, contract first | Blueprint §5.1 | Guardrails where an agent is most likely to slip. The bundler that comes with it collapses 35 script tags into one and **retires the manual `?v=` cache-busting ritual** |
 | Memory ledger eviction fix | Blueprint §7.3 | Cheap; fixes a hole in a headline feature |
+| Provider capability interface | Blueprint §5.4 | A real port with declared capabilities (`maxReferenceImages`, aspect ratios, latency) instead of branching on provider name. The idea already half-exists as `maxCharacterRefs` / `supportsMultiReference`; formalising it makes B4 structural rather than a copy fix, puts the B1 timeout bug in one adapter with one test, and turns "add a provider" into writing one file |
 
 ### Out of scope, and why
 
@@ -45,7 +46,50 @@ it's what stops v3 sprawling.
 | **Entity graph, operator photos, phone realism, voice notes, relationship arc, local models, character bundles, daily log** | Real ideas, parked for v3.1+. v3 is foundation. |
 | **Full TypeScript conversion** | Weeks of churn with nothing visible. Gradual gets most of the protection at a fraction of the disruption. |
 | **From-scratch rebuild** | Rejected in the blueprint and reaffirmed. The prompt corpus is the asset; the machinery gets improved around it. |
-| **Cross-platform launchers, public docs, licensing, onboarding polish, demo character** | Private tool. Drops out entirely. |
+| **Cross-platform launchers, public docs, licensing, onboarding polish, demo character** | Private tool. Drops out entirely. The app stays Windows-only; a `.sh` launcher only matters if the audience changes. |
+
+### Guardrails — decisions already made, not to be relitigated
+
+Carried from the blueprint. These are the tempting mistakes, and an agent working in this codebase
+should be told them explicitly.
+
+- **No accounts, no cloud sync, no server-side state.** Local-first is a product feature, not a
+  limitation to grow out of. (Future idea 4 in §8 would invert this — deliberately, and with eyes open.)
+- **No telemetry.** Given the subject matter, the correct amount of data collection is zero.
+- **No microservices, no Docker, no containers.** The app must stay double-clickable.
+- **Never rewrite the prompt corpus.** Port it. It is the most valuable and least reproducible asset
+  in the project, and the reason a from-scratch rebuild was rejected.
+- **No "AI agent framework" dependency.** The orchestration here is a well-understood pipeline, not
+  an agent loop. A framework would add abstraction and remove control over exactly the things that
+  matter — prompt assembly and token budget.
+- **Keep Python for the local server.** Requiring a Node install would be a real regression in setup.
+- **No premature multi-character group chats.** It multiplies contract, pacing and persona complexity
+  while the one-on-one illusion still has headroom.
+- **No streaming responses.** The turn is atomic — the client must validate, clamp and possibly
+  repair the whole contract before anything is shown. Streaming fights the architecture for a
+  cosmetic gain, and the typing indicator already covers the latency perceptually.
+
+### What is already good — do not "improve" these
+
+An agent doing Phase 5 needs this list as much as the defect list.
+
+- **The cancel/rollback checkpoint system** — snapshots chat DOM, phone cards, history, uiLog, every
+  metric, clock offset, world beat, memory ledger and loyalty dynamics, then restores all of it and
+  returns the cancelled message to the composer. (It has one gap, B3 — fix that, don't replace it.)
+- **Chat-boundary epochs** — `sessionEpoch` plus the boundary tokens correctly stop an in-flight turn
+  landing in the wrong chat, a bug class most apps of this shape get wrong.
+- **`bindSafely`** (`app.js:899-910`) — wraps every subsystem bind so one broken module degrades
+  instead of taking down the app.
+- **`verifyPromptArchitecture()`** (`app.js:954`) — a boot-time assertion that the prompt split still
+  holds. Phase 4's wall should make this a build-time lint rule rather than removing it.
+- **The debug turn cards** — the best information design in the app; promoted in §3, not replaced.
+- **The "Copy troubleshoot report" flow** — it even tells you to paste into Cursor. A deliberate,
+  smart dev-loop integration worth keeping as the agent workflow evolves.
+- **Accessibility and responsiveness** — 12 breakpoints down to 520px, two `prefers-reduced-motion`
+  blocks, ARIA roles on the autocomplete combobox and modals. Better than typical; don't regress it
+  during the overhaul.
+- **The stepper**, the Protocol cards, the phone chrome, and the deck's persona/thermal/directives
+  taxonomy — all listed in §3 as preserved.
 
 ---
 
@@ -74,7 +118,7 @@ Everything here is a defect with a known fix and a known location. Finding IDs r
 
 | ID | Fix | What breaks today |
 |----|-----|-------------------|
-| **B00** | **Timezone matching** (`phone-ux.js:33-38`) | Dallas, Atlanta, Portland, Cleveland, Oakland, Milan, Iceland, Poland, Auckland, Adelaide, Lagos all silently run on Los Angeles time. Her clock, her routine, and every time-of-day cue are hours off. One line. |
+| **B00** | **Timezone matching** (`phone-ux.js:33-38`) | Dallas, Atlanta, Portland, Cleveland, Oakland, Milan, Iceland, Poland, Auckland, Adelaide, Lagos all silently run on Los Angeles time. Her clock, her routine, and every time-of-day cue are hours off. **Two fixes, pick deliberately:** the one-line patch is to iterate the city table longest-key-first and match on word boundaries. The *proper* fix from the blueprint is to **store an IANA zone on the character record at creation**, chosen from a searchable list — then there is no runtime guessing left to get wrong, and the whole bug class disappears rather than being patched. The second also removes the three dead browser-local fallbacks below from ever mattering. |
 | **B0** | **Immersion beats invisible** (`ui.js:88-92` + 10 call sites) | With Developer Mode off — the default — "left on read", "she went quiet", "she was typing… then deleted it" all route to a hidden debug panel. The refusal system looks like the app crashing. |
 | **B5b** | **Pinned metric vanishes silently** (`simulation.js:3633-3638`) | Same root cause as B0, distinct symptom: the ghost-hold branch returns *before* the command bubble is appended at `:3854`, so `/arousal 80` during a ditch hold changes a HUD number and produces no chat entry, no toast, and no hint the pin was deferred. |
 | **B1** | **Image timeout misreported** (`api.js:340`) | `return` where it should be `throw`. Every timeout is reported as "no image came back" and the useful message is discarded. |
@@ -278,6 +322,13 @@ Split the decision from the execution:
   Returns a schedule: an ordered list of *"after this long, do this"* — show Seen, start typing, stop
   typing, send, withhold. No timers, no waiting, nothing touching the screen.
 - **Scheduler.** Executes a schedule against the clock, with a single cancellation point.
+
+**Both halves need a clock they don't own.** Introduce a small clock port — `now()`, `advance(ms)`,
+`timezone` — backed by real time plus the session offset in production and by a controllable fake in
+tests. Today time is read directly all over the codebase as `Date.now() + clockOffsetMs`, which is
+why pacing can only be verified by waiting in real time, and it's the same scattered-time-reads
+problem that produced B00 and the three dead browser-local fallbacks. The fake clock is also what
+Phase 2's pacing tests need in order to run instantly, so this lands naturally alongside the split.
 
 **Why it earns its place, given Skip Wait already exists.** Skip Wait proves a wait *can* be skipped.
 It does not prove the wait was the *right length*, and it needs a human to click it — an automated
@@ -517,6 +568,12 @@ actively mislead an agent. Worth revisiting on those grounds alone.
 **4 — Storage consolidation (D2).** Parked. But Phase 1 builds export/import, and designing that
 bundle against three separate databases versus one materially changes the work. If consolidation is
 ever happening, doing it *before* export is much cheaper than after.
+
+There's a second reason to decide now: characters, chats and settings all live in **localStorage,
+which is capped around 5 MB per origin**. The app already ships a "Browser storage is full" modal
+because that ceiling gets hit in practice. Consolidating into IndexedDB — which has no comparable
+cliff — retires that failure mode entirely rather than continuing to explain it to the user. A
+storage-usage meter would also stop the cliff being a surprise.
 
 **5 — The app phones two third parties.** `calendar.js:570` and `:579` fetch the holiday catalogue
 from **`www.hebcal.com`** and **`date.nager.at`** directly from the browser, on boot, outside the
