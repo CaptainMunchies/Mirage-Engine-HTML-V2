@@ -22,13 +22,18 @@
         return usingLocalProxy() ? '/api/proxy/interactions' : `${BASE}/interactions`;
     }
 
-    function interactionsHeaders(apiKey) {
+    /**
+     * Through the local proxy the key rides in X-Mirage-Api-Key and the request must
+     * also carry this run's session token — without it the proxy answers 403, which
+     * is what stops other sites in the browser from using it.
+     */
+    async function interactionsHeaders(apiKey) {
         const headers = { 'Content-Type': 'application/json' };
         if (usingLocalProxy()) {
             headers['X-Mirage-Api-Key'] = apiKey;
-        } else {
-            headers['x-goog-api-key'] = apiKey;
+            return MirageProxySession.withSession(headers);
         }
+        headers['x-goog-api-key'] = apiKey;
         return headers;
     }
 
@@ -347,12 +352,19 @@
         }
 
         try {
-            const res = await fetch(interactionsUrl(), {
+            const send = async () => fetch(interactionsUrl(), {
                 method: 'POST',
-                headers: interactionsHeaders(apiKey),
+                headers: await interactionsHeaders(apiKey),
                 body: JSON.stringify(body),
                 signal: fetchSignal || undefined
             });
+
+            let res = await send();
+            if (res.status === 403 && usingLocalProxy()) {
+                // A server restart mints a new session token; refetch once.
+                MirageProxySession.invalidate();
+                res = await send();
+            }
 
             if (proxyDidNotAnswer(res)) {
                 throw proxyMissingError(res, context);

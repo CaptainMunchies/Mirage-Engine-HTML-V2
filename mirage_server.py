@@ -6,8 +6,12 @@ Fixes browser CORS for Interactions and kie Market endpoints.
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, quote
 import base64
+import hmac
+import ipaddress
 import json
 import mimetypes
+import secrets
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -16,6 +20,104 @@ GEMINI_INTERACTIONS = 'https://generativelanguage.googleapis.com/v1beta/interact
 KIE_API = 'https://api.kie.ai'
 KIE_UPLOAD = 'https://kieai.redpandaai.co'
 PORT = 8080
+
+# Every /api/proxy/* route requires this, handed to the page over a same-origin
+# request the browser will not let another site read. Without it, any website open
+# in the browser could drive this proxy while Mirage is running.
+SESSION_TOKEN = secrets.token_urlsafe(32)
+
+ALLOWED_ORIGINS = frozenset({
+    f'http://localhost:{PORT}',
+    f'http://127.0.0.1:{PORT}',
+    f'http://[::1]:{PORT}',
+})
+
+# Hosts the image proxy may fetch a generated result from. Anything else is refused
+# outright, and whatever a host resolves to is checked again below — an allowlisted
+# name that resolves (or redirects) to a private address is still refused.
+IMAGE_HOST_SUFFIXES = (
+    'kie.ai',
+    'redpandaai.co',
+    'redpandaai.com',
+    'aiquickdraw.com',
+    'googleapis.com',
+    'googleusercontent.com',
+    'amazonaws.com',
+    'cloudfront.net',
+    'r2.dev',
+    'r2.cloudflarestorage.com',
+    'cdn.openai.com',
+    'oaidalleapiprodscus.blob.core.windows.net',
+    'blob.core.windows.net',
+    'fal.media',
+    'replicate.delivery',
+)
+
+
+def _host_allowed(host):
+    h = (host or '').strip().lower().rstrip('.')
+    if not h:
+        return False
+    return any(h == suf or h.endswith('.' + suf) for suf in IMAGE_HOST_SUFFIXES)
+
+
+def _resolves_to_private(host):
+    """True only when the host positively resolves to an address inside this machine
+    or the LAN. The backstop behind the allowlist: it catches an allowlisted name
+    that points somewhere internal.
+
+    A resolution *failure* is not treated as private — the host is already on the
+    allowlist, and failing closed here would break image download on any network
+    where the proxy resolves DNS rather than the client. (There is a small TOCTOU
+    window against DNS rebinding, since urllib resolves again when it connects;
+    closing that needs IP pinning, and the allowlist is the real control here.)
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except OSError:
+        return False
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr.split('%', 1)[0])
+        except ValueError:
+            continue
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
+            return True
+    return False
+
+
+def _image_url_ok(url):
+    """(ok, reason) for a URL the image proxy has been asked to fetch."""
+    try:
+        parts = urlparse(url)
+    except ValueError:
+        return False, 'Malformed image url'
+    if parts.scheme not in ('http', 'https'):
+        return False, 'Image url must be http(s)'
+    host = parts.hostname
+    if not host:
+        return False, 'Image url has no host'
+    if not _host_allowed(host):
+        return False, f'Refusing to fetch from unlisted host: {host}'
+    if _resolves_to_private(host):
+        return False, f'Refusing to fetch from a non-public address: {host}'
+    return True, ''
+
+
+class GuardedRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Re-check every hop — an allowlisted host must not be able to bounce us
+    to http://127.0.0.1:22 or into the LAN."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        ok, reason = _image_url_ok(newurl)
+        if not ok:
+            raise urllib.error.HTTPError(newurl, 403, f'Blocked redirect: {reason}', headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+_IMAGE_OPENER = urllib.request.build_opener(GuardedRedirectHandler)
 
 # Cloudflare Browser Integrity Check bans Python-urllib/* (error 1010).
 KIE_BROWSER_UA = (
@@ -52,15 +154,68 @@ class MirageHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         super().end_headers()
 
+    def _request_origin(self):
+        return (self.headers.get('Origin') or '').strip()
+
+    def _origin_allowed(self):
+        """No Origin means same-origin or a non-browser client; otherwise it must
+        be one of this server's own origins."""
+        origin = self._request_origin()
+        return not origin or origin in ALLOWED_ORIGINS
+
+    def _cors_origin(self):
+        """Echo the caller's origin only when we recognise it. Returning '*' here is
+        what let any page on the internet read this proxy's responses."""
+        origin = self._request_origin()
+        return origin if origin in ALLOWED_ORIGINS else None
+
+    def _send_cors(self):
+        origin = self._cors_origin()
+        if origin:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Vary', 'Origin')
+
+    def _authorized(self):
+        """Constant-time check of the per-run session token."""
+        if not self._origin_allowed():
+            return False
+        supplied = (self.headers.get('X-Mirage-Session') or '').strip()
+        return bool(supplied) and hmac.compare_digest(supplied, SESSION_TOKEN)
+
+    def _require_session(self):
+        if self._authorized():
+            return True
+        self._json_response(403, {'error': {'message': (
+            'Missing or invalid Mirage session token. Reload the Mirage tab — '
+            'the token is issued per server run.'
+        )}})
+        return False
+
+    def _serve_session_token(self):
+        """Bootstrap for the page itself. Deliberately carries no CORS header, so a
+        cross-origin fetch cannot read it, and refuses a recognisably foreign Origin."""
+        if not self._origin_allowed():
+            self._json_response(403, {'error': {'message': 'Cross-origin request refused'}})
+            return
+        payload = json.dumps({'token': SESSION_TOKEN}).encode('utf-8')
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_OPTIONS(self):
         path = self.path.split('?', 1)[0]
         if path.startswith('/api/proxy/'):
+            if not self._cors_origin():
+                self.send_error(403, 'Cross-origin request refused')
+                return
             self.send_response(204)
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self._send_cors()
             self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
             self.send_header(
                 'Access-Control-Allow-Headers',
-                'Content-Type, X-Mirage-Api-Key, Authorization'
+                'Content-Type, X-Mirage-Api-Key, X-Mirage-Session, Authorization'
             )
             self.end_headers()
             return
@@ -68,6 +223,11 @@ class MirageHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == '/api/proxy/session':
+            self._serve_session_token()
+            return
+        if path.startswith('/api/proxy/') and not self._require_session():
+            return
         if path == '/api/proxy/kie/jobs/status':
             self._kie_job_status()
             return
@@ -81,6 +241,8 @@ class MirageHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path.startswith('/api/proxy/') and not self._require_session():
+            return
         if path == '/api/proxy/interactions':
             self._proxy_interactions()
             return
@@ -311,8 +473,14 @@ class MirageHandler(SimpleHTTPRequestHandler):
             self._json_response(400, {'error': {'message': 'Invalid JSON body'}})
             return
         url = str(payload.get('url') or '').strip()
-        if not url.startswith('http://') and not url.startswith('https://'):
-            self._json_response(400, {'error': {'message': 'Invalid image url'}})
+        # This route used to fetch *any* http(s) URL the browser named and hand the
+        # body back base64'd, which made the proxy a read primitive for anything
+        # reachable from this machine. Both checks matter: the allowlist keeps it to
+        # result CDNs, and the address check catches an allowlisted name pointing
+        # somewhere internal. Redirects are re-checked per hop by GuardedRedirectHandler.
+        ok, reason = _image_url_ok(url)
+        if not ok:
+            self._json_response(400, {'error': {'message': reason}})
             return
 
         # Result URLs are usually public tempfiles; Bearer can break some CDNs.
@@ -326,7 +494,7 @@ class MirageHandler(SimpleHTTPRequestHandler):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with _IMAGE_OPENER.open(req, timeout=120) as resp:
                 raw = resp.read()
                 ctype = resp.headers.get('Content-Type') or 'image/png'
                 if ';' in ctype:
@@ -358,7 +526,7 @@ class MirageHandler(SimpleHTTPRequestHandler):
                 data = resp.read()
                 self.send_response(resp.status)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Access-Control-Allow-Origin', '*')
+                self._send_cors()
                 self.end_headers()
                 self.wfile.write(data)
         except urllib.error.HTTPError as e:
@@ -387,7 +555,7 @@ class MirageHandler(SimpleHTTPRequestHandler):
                 return
             self.send_response(e.code)
             self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            self._send_cors()
             self.end_headers()
             self.wfile.write(err_body)
         except Exception as e:
@@ -397,7 +565,7 @@ class MirageHandler(SimpleHTTPRequestHandler):
         payload = json.dumps(obj).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self._send_cors()
         self.end_headers()
         self.wfile.write(payload)
 

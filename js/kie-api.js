@@ -75,17 +75,27 @@
 
     async function proxyFetch(path, { apiKey, method = 'GET', body, signal, formData } = {}) {
         requireProxy('kie.ai');
-        const headers = {
-            'X-Mirage-Api-Key': apiKey
-        };
-        if (!formData) headers['Content-Type'] = 'application/json';
+        const baseHeaders = { 'X-Mirage-Api-Key': apiKey };
+        if (!formData) baseHeaders['Content-Type'] = 'application/json';
 
-        const res = await fetch(path, {
-            method,
-            headers,
-            body: formData || (body != null ? JSON.stringify(body) : undefined),
-            signal: signal || undefined
-        });
+        const send = async () => {
+            // The proxy rejects anything without this run's token, which is what keeps
+            // other sites in the browser from using it.
+            const headers = await MirageProxySession.withSession(baseHeaders);
+            return fetch(path, {
+                method,
+                headers,
+                body: formData || (body != null ? JSON.stringify(body) : undefined),
+                signal: signal || undefined
+            });
+        };
+
+        let res = await send();
+        if (res.status === 403) {
+            // A server restart mints a new token; refetch once before giving up.
+            MirageProxySession.invalidate();
+            res = await send();
+        }
 
         if (proxyDidNotAnswer(res)) {
             throw proxyMissingError(res, 'kie.ai');
