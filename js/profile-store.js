@@ -300,8 +300,7 @@
 
         MirageChatStore?.resetSessionVolatile?.(state);
 
-        state.clearMasterFace();
-        state.clearBodyReference?.();
+        state.clearCharacterAnchors();
 
         let faceFile = null;
         let bodyFile = null;

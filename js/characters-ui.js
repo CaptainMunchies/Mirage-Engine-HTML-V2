@@ -108,7 +108,7 @@
         S().edf = null;
         S().mediaFiles = [];
         S().mediaLibrary = [];
-        S().clearMasterFace();
+        S().clearCharacterAnchors();
         S().resetSimulationRuntime({ keepProtocol: false });
         S().session.phase = 'setup';
 

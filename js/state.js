@@ -546,8 +546,7 @@
             this.mediaLibrary = [];
             this.activeCharacterId = null;
             this.activeCharacterLabel = null;
-            this.clearMasterFace();
-            this.clearBodyReference();
+            this.clearCharacterAnchors();
         },
 
         resetSessionVolatile() {
@@ -826,6 +825,21 @@
             this.clearMasterFace();
             this.masterFaceFile = file;
             this.masterFaceObjectUrl = URL.createObjectURL(file);
+        },
+
+        /**
+         * Drop *both* visual anchors — use this whenever the identity in the editor
+         * changes (new draft, switching character, session reset). Clearing only the
+         * face leaves the previous character's body reference live, and because
+         * exportSnapshot reads masterBodyFile at save time it then gets written onto
+         * the new character.
+         *
+         * Face-only operations (re-picking a face for the *same* character) should
+         * still call clearMasterFace directly.
+         */
+        clearCharacterAnchors() {
+            this.clearMasterFace();
+            this.clearBodyReference();
         }
     };
 
