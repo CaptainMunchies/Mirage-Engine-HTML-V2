@@ -12,7 +12,7 @@
     <header class="app-header">
         <div class="brand">
             <h1>MIRAGE ENGINE <span style="color:var(--accent);font-size:0.75rem;">v2</span></h1>
-            <p>Standalone · Google AI · Trigger-Lock Edition</p>
+            <p>Standalone · Google AI + kie.ai · Trigger-Lock Edition</p>
         </div>
         <div class="header-actions">
             <span id="apiKeyBadge" class="api-badge">API Key: Required</span>
@@ -86,7 +86,10 @@
                 </div>
 
                 <div class="arch-note">
-                    Architecture: The master Mirage system prompt is injected into <strong>both</strong> the thinking model (narrative) and the image model (visuals) on every call.
+                    Architecture: the two models are given <strong>disjoint</strong> prompts. The thinking model
+                    receives the narrative core — dossier, persona, history, metrics — and the image model receives
+                    only the render doctrine plus the identity ledger. The renderer never sees the story; metrics
+                    reach it translated into photographic direction instead.
                 </div>
 
                 <p style="margin-top:1.25rem;">
@@ -160,7 +163,7 @@
 
                 <div class="card">
                     <h3>Or upload a dedicated face reference</h3>
-                    <p class="card-hint">Drag & drop or click — optional high-res close-up (does not count toward the 30-photo ingest limit).</p>
+                    <p class="card-hint">Drag & drop or click — optional high-res close-up (does not count toward the 20-photo ingest limit).</p>
                     <div id="faceUploadZone" class="media-dropzone media-dropzone-compact" tabindex="0" role="button" aria-label="Upload face reference">
                         <div class="dropzone-inner">
                             <span class="dropzone-icon">+</span>

@@ -332,21 +332,14 @@
     }
 
     function updateChrome() {
-        const statusTime = document.getElementById('phoneStatusTime')
-            || document.getElementById('phoneStatus');
+        const statusTime = document.getElementById('phoneStatusTime');
         const presence = document.getElementById('phonePresence');
         const headerName = document.getElementById('phoneHeaderName');
         const tz = resolveTimeZone(S()?.profile?.location);
         const now = herNow();
         const name = S()?.profile?.name || 'Character';
 
-        if (statusTime) {
-            if (statusTime.id === 'phoneStatusTime') {
-                statusTime.textContent = formatClock(now, tz);
-            } else {
-                statusTime.textContent = `${formatClock(now, tz)} · 5G`;
-            }
-        }
+        if (statusTime) statusTime.textContent = formatClock(now, tz);
 
         const weekdayEl = document.getElementById('phoneStatusWeekday');
         const specialEl = document.getElementById('phoneStatusSpecial');
@@ -528,11 +521,6 @@
         });
         if (last) lastUserReceiptEl = last;
         if (users.length) setPresence('reading');
-    }
-
-    /** @deprecated use markUserSeen */
-    function markUserOpened() {
-        return markUserSeen();
     }
 
     function markUserReaction(emoji) {
@@ -1369,7 +1357,6 @@
         markUserSeen,
         markAllUserSeen,
         restoreUserReceipts,
-        markUserOpened,
         markUserReaction,
         markAiUnread,
         markAllAiRead,

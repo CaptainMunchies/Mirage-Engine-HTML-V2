@@ -1273,15 +1273,6 @@
         return { engagement: next, changed, gapMs: gap, from: current };
     }
 
-    /** @deprecated — prefer resolveEngagement; kept for any stray callers */
-    function resolveCompliance(tracking, characterText, profile) {
-        const eng = resolveEngagement(tracking, characterText, profile, null);
-        if (eng <= 25) return 'ignoring';
-        if (eng <= 45) return 'reluctant';
-        if (eng <= 35) return 'refusing';
-        return 'engaged';
-    }
-
     global.MirageLoyaltyUX = {
         BANDS,
         COMPLIANCE_TO_ENGAGEMENT,
@@ -1292,7 +1283,6 @@
         seedSessionDynamics,
         migrateComplianceToEngagement,
         resolveEngagement,
-        resolveCompliance,
         recordUserMessage,
         afterTurn,
         decayEngagementForSilence,

@@ -1046,5 +1046,4 @@
         MAX_UI_LOG
     };
 
-    global.MirageSessionStore = global.MirageChatStore;
 })(typeof window !== 'undefined' ? window : globalThis);

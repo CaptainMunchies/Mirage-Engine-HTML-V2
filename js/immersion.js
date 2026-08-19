@@ -1951,11 +1951,6 @@
         clearUnreadAftermath();
     }
 
-    /** @deprecated alias */
-    function clearUnseenWatch() {
-        clearNoReplyWatch();
-    }
-
     /**
      * After she sends: 3 minutes with no operator reply → social aftermath.
      * /time pass does not use this — it fires the lottery immediately after the clock jump.
@@ -2000,16 +1995,6 @@
             }
             fireSocialBeat(reason, outcome);
         }, noReplyWaitMs());
-    }
-
-    /** @deprecated use armNoReplyWatch */
-    function armUnseenWatch() {
-        armNoReplyWatch();
-    }
-
-    /** @deprecated use armNoReplyWatch */
-    function onMessageLeftUnread() {
-        armNoReplyWatch();
     }
 
     function onOperatorAttending() {
@@ -2429,11 +2414,6 @@
         clearNoReplyWatch();
     }
 
-    /** @deprecated — fireSocialBeat is the path; kept for any stray callers */
-    function fireProactive(reason) {
-        fireSocialBeat(reason, pickSocialOutcome(reason));
-    }
-
     function waitForHer() {
         if (isClockResumeHold()) {
             MirageUI?.toast?.('Pick how to handle the time gap first.', 'error');
@@ -2688,9 +2668,6 @@
         handleIgnoreAftermath,
         armNoReplyWatch,
         clearNoReplyWatch,
-        armUnseenWatch,
-        clearUnseenWatch,
-        onMessageLeftUnread,
         onOperatorAttending,
         clearSocialHold,
         pickSocialOutcome,

@@ -4,10 +4,22 @@
 (function (global) {
     'use strict';
 
-    const GOON_STACK_TIP =
-        'Best Goon stack: Settings → Thinking = Grok, Thinking — scene commands = Grok '
-        + '(used by /next scene, /jump, /time pass), Image = Seedream 5.0 Lite or Pro. '
-        + 'Click Save, then retry.';
+    /**
+     * The recommended stack is provider-specific: Grok and Seedream exist only in the
+     * kie registry, so telling a Google-provider user to pick them sends them looking
+     * for models their dropdown does not contain.
+     */
+    function goonStackTip() {
+        const provider = (typeof EngineState !== 'undefined' && EngineState.apiProvider) || 'google';
+        if (provider === 'kie') {
+            return 'Best Goon stack: Settings → Thinking = Grok, Thinking — scene commands = Grok '
+                + '(used by /next scene, /jump, /time pass), Image = Seedream 5.0 Lite or Pro. '
+                + 'Click Save, then retry.';
+        }
+        return 'Google AI refuses explicit beats on every model it offers, so no combination of '
+            + 'Google models will get past this. Switch Settings → Provider to kie.ai (needs a '
+            + 'kie key and the local proxy), then pick Thinking = Grok and Image = Seedream 5.0.';
+    }
 
     function safetyChatBody(err) {
         const preview = err.rawPreview || err.message
@@ -22,7 +34,7 @@
             + '. Many models refuse explicit sexual RP (not only Google).'
             + sceneHint
             + ' '
-            + GOON_STACK_TIP
+            + goonStackTip()
             + preview;
     }
 
@@ -62,7 +74,7 @@
                     toast: 'Blocked by a safety filter — text was not sent.',
                     chat: 'Provider safety filter blocked the turn.'
                         + ' '
-                        + GOON_STACK_TIP
+                        + goonStackTip()
                         + preview,
                     action: null
                 };
@@ -107,7 +119,7 @@
             return {
                 toast: 'Blocked by a safety filter — text was not sent.',
                 chat: 'Provider safety filter blocked the prompt. '
-                    + GOON_STACK_TIP,
+                    + goonStackTip(),
                 action: null
             };
         }
@@ -128,10 +140,12 @@
             };
         }
 
-        if (/empty response|no image returned/i.test(msg)) {
+        // Only "no image returned" can reach here — the empty-thinking branch above
+        // already claims every "empty response", so testing for it again was dead.
+        if (/no image returned/i.test(msg)) {
             return {
-                toast: err.message || 'Empty model response.',
-                chat: err.message || 'The model returned an empty response. Retry the turn.',
+                toast: err.message || 'Image model returned nothing.',
+                chat: err.message || 'The image model returned no image. Retry the turn.',
                 action: 'retry'
             };
         }

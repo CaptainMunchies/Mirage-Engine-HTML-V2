@@ -1653,11 +1653,6 @@ protocol selection. Stay brief and practical.
         return null;
     }
 
-    /** @deprecated use expressionFromEngagement */
-    function expressionFromCompliance(compliance) {
-        return expressionFromEngagement(compliance);
-    }
-
     function resolveEngagementScore(sess) {
         if (Number.isFinite(Number(sess?.engagement))) return Number(sess.engagement);
         const migrated = typeof MirageLoyaltyUX?.migrateComplianceToEngagement === 'function'
@@ -2602,11 +2597,6 @@ protocol selection. Stay brief and practical.
         session._shotRotateThisTurn = true;
         applyShotLockToDirective(directive, lock);
         return true;
-    }
-
-    /** @deprecated use enforceShotVariance — kept so older callers still rotate. */
-    function applySceneCompositionVariance(directive, session, opts) {
-        return enforceShotVariance(directive, session, opts);
     }
 
     const THIRD_PERSON_RE = /third[- ]person|someone else (is )?tak|friend took|taken by (a )?(friend|someone|another)|across (the )?(desk|table|room|from)|from (across|the other side)|observer|documentary|candid portrait of her|looking at her from|camera (floats|hovers)|both hands (visible|free|occupied).{0,40}(chin|desk|phone).{0,40}(while|and).{0,40}(camera|photo)|photo of her sitting/i;
@@ -3860,8 +3850,6 @@ FACE RECOVERY MODE (active — overrides variance):
         PERSONA_BEHAVIORS,
         NARRATIVE_CORE,
         RENDER_DOCTRINE,
-        /** @deprecated kept for compatibility — narrative half only. */
-        MIRAGE_CORE: NARRATIVE_CORE,
         EDF_JSON_SCHEMA_HINT,
         RUNTIME_COMMANDS,
         RUNTIME_PERSONAS,
@@ -3899,7 +3887,6 @@ FACE RECOVERY MODE (active — overrides variance):
         normalizeGoonFace,
         normalizeGoonFrame,
         isTightCrop,
-        applySceneCompositionVariance,
         enforceShotVariance,
         normalizeCameraAngle,
         formatShotLabel,
