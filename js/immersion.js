@@ -938,7 +938,13 @@
             return true;
         }
         if (/\b(where are you|where r you|wya|wyd)\b/i.test(t)) return true;
-        if (/(איפה|למה|מתי|מה\s|מי\s|איך|הייכן)/.test(t)) return true;
+        // `הייכן` had a doubled yod and is not a word, so the formal "where" could
+        // never match. The bare two-letter words need a boundary or `מיטה` (bed) and
+        // `מהמם` (gorgeous) read as questions — and \b is useless here, since it is
+        // defined by [A-Za-z0-9_] and Hebrew letters are not word characters.
+        if (/(איפה|למה|מתי|איך|היכן|כמה|(^|[^\u0590-\u05FF])(מה|מי)(?![\u0590-\u05FF]))/u.test(t)) {
+            return true;
+        }
         return false;
     }
 
@@ -1080,7 +1086,7 @@
             if (w.style === 'double_text') w.w *= gp.doubleTextMul;
         });
 
-        if (coldEng || coolEng) {
+        if (coolEng) {
             weights.forEach(w => {
                 if (w.style === 'left_on_read' || w.style === 'went_quiet') w.w *= coldEng ? 2.2 : 1.45;
                 if (w.style === 'ghost_type') w.w *= coldEng ? 1.15 : 1.25;
@@ -1438,8 +1444,18 @@
         let preReadMs;
         let gapMs;
 
+        // `slow` is the model explicitly asking for a longer beat, so it is checked
+        // before presence. It used to sit *after* the hot and warm branches, which
+        // meant a warm reply took the normal 2–22s and the style did nothing at all —
+        // hot is fine either way, since resolveStyle already vetoes slow there.
+        if (style === 'slow') {
+            const floor = presence.band === 'warm' ? 25 * 1000 : 60 * 1000;
+            preReadMs = hasHint
+                ? clamp(suggested * 1000, floor, 15 * 60 * 1000)
+                : randBetween(floor + 30 * 1000, 8 * 60 * 1000);
+            gapMs = randBetween(800, 3500);
         // Phone still open → she sees the notification / thread instantly
-        if (presence.band === 'hot') {
+        } else if (presence.band === 'hot') {
             preReadMs = hasHint
                 ? clamp(suggested * 1000, 400, 8 * 1000)
                 : randBetween(350, 2800);
@@ -1449,11 +1465,6 @@
                 ? clamp(suggested * 1000, 1500, 45 * 1000)
                 : randBetween(2 * 1000, 22 * 1000);
             gapMs = randBetween(400, 2000);
-        } else if (style === 'slow') {
-            preReadMs = hasHint
-                ? clamp(suggested * 1000, 60 * 1000, 15 * 60 * 1000)
-                : randBetween(90 * 1000, 8 * 60 * 1000);
-            gapMs = randBetween(800, 3500);
         } else if (style === 'left_on_read' || style === 'ghost_type') {
             preReadMs = hasHint
                 ? clamp(suggested * 1000, 8 * 1000, 12 * 60 * 1000)

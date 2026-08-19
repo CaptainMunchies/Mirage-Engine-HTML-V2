@@ -206,12 +206,26 @@
         return buildPlaceholderDataUrl(d, imagePrompt);
     }
 
+    /**
+     * Walk DELIVERY_CYCLE so a mock run exercises every delivery style.
+     *
+     * This used to open with `if (!S().realTimeChat) return 'normal'`, and
+     * realTimeChat is *derived* — state.js recomputes it as pacingMode === 'realtime'
+     * — so outside Realtime the cycle never advanced and every mocked turn came back
+     * `normal`. That made the two modes you actually use untestable, and Phase 2 needs
+     * this cycle to build deterministic transcripts. Pacing decides how a style is
+     * *delivered*; it should not decide which styles the mock is allowed to produce.
+     */
     function nextDeliveryStyle() {
-        const realTime = !!S()?.realTimeChat;
-        if (!realTime) return 'normal';
         const style = DELIVERY_CYCLE[deliveryCursor % DELIVERY_CYCLE.length];
         deliveryCursor += 1;
         return style;
+    }
+
+    /** Restart the cycle so a test run is reproducible from its first turn. */
+    function resetDeliveryCycle() {
+        deliveryCursor = 0;
+        memoryStubEvery = 0;
     }
 
     async function mockThinkingGenerate({ userParts, signal } = {}) {
@@ -301,6 +315,7 @@
         isActiveImages,
         isActiveThinking,
         apiModeLabel,
+        resetDeliveryCycle,
         mockThinkingGenerate,
         mockImageGenerate,
         buildPlaceholderDataUrl

@@ -677,6 +677,27 @@
         return (byDate.get(k) || []).slice();
     }
 
+    /**
+     * These fallbacks compute *her* clock from the operator's browser timezone, which
+     * is wrong in a way nothing on screen reveals — the same silent-corruption shape as
+     * B00. They should be unreachable; if one ever fires, make sure it leaves a trace.
+     */
+    let wrongClockWarned = false;
+    function warnWrongClockOnce(where) {
+        if (wrongClockWarned) return;
+        wrongClockWarned = true;
+        console.warn(
+            `[Mirage] ${where} fell back to the browser timezone — her clock, weekday and `
+            + 'routine may be hours off. A script probably failed to load; reload the page.'
+        );
+        try {
+            MirageSimulation?.appendDebugDecision?.({
+                kind: 'notice',
+                summary: `Clock fallback: ${where} is using the browser timezone, not hers`
+            });
+        } catch { /* debug panel is optional */ }
+    }
+
     function getSimDateParts(profile) {
         const record = profile || global.EngineState?.profile;
         const loc = record?.location;
@@ -686,13 +707,14 @@
             : new Date();
         const z = typeof global.MiragePhoneUX?.getZonedParts === 'function'
             ? global.MiragePhoneUX.getZonedParts(now, tz)
-            : {
+            : (warnWrongClockOnce('calendar sim date'), {
+                // phone-ux missing → these are the operator's date parts, not hers.
                 year: now.getFullYear(),
                 month: now.getMonth() + 1,
                 day: now.getDate(),
                 hour: now.getHours(),
                 minute: now.getMinutes()
-            };
+            });
         let weekday = 'Thursday';
         let weekdayShort = 'Thu';
         try {

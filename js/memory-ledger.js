@@ -63,14 +63,42 @@
         return item;
     }
 
+    /**
+     * Close a ledger item.
+     *
+     * The matcher comes straight from the model, and a loose `includes()` let a short
+     * or generic string close the wrong promise — "the thing" matching whichever open
+     * item happened to contain those letters. Matching is now tiered: an exact id
+     * first, then an exact text match, then a substring but only when the matcher is
+     * long enough to be specific *and* it hits exactly one open item. An ambiguous
+     * matcher closes nothing rather than guessing.
+     */
+    const MIN_FUZZY_MATCH_CHARS = 12;
+
     function resolve(session, matcher) {
         const ledger = ensure(session);
-        const q = String(matcher || '').trim().toLowerCase();
+        const raw = String(matcher || '').trim();
+        const q = raw.toLowerCase();
         if (!q) return false;
-        const hit = ledger.find(i =>
-            !i.resolved && (i.id === matcher || i.text.toLowerCase().includes(q)));
-        if (!hit) return false;
-        hit.resolved = true;
+
+        const open = ledger.filter(i => !i.resolved);
+
+        const byId = open.find(i => i.id === raw);
+        if (byId) {
+            byId.resolved = true;
+            return true;
+        }
+
+        const byText = open.find(i => String(i.text || '').trim().toLowerCase() === q);
+        if (byText) {
+            byText.resolved = true;
+            return true;
+        }
+
+        if (q.length < MIN_FUZZY_MATCH_CHARS) return false;
+        const fuzzy = open.filter(i => String(i.text || '').toLowerCase().includes(q));
+        if (fuzzy.length !== 1) return false;
+        fuzzy[0].resolved = true;
         return true;
     }
 

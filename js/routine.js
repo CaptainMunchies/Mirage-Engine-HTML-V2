@@ -47,10 +47,35 @@
         return /jew(?:ish)?|judaism|shabbat|shabbos|יהוד|שומרת[\s-]?שבת|דתי/.test(dossierBlob(profile));
     }
 
+    /**
+     * These fallbacks compute *her* clock from the operator's browser timezone, which
+     * is wrong in a way nothing on screen reveals — the same silent-corruption shape as
+     * B00. They should be unreachable; if one ever fires, make sure it leaves a trace.
+     */
+    let wrongClockWarned = false;
+    function warnWrongClockOnce(where) {
+        if (wrongClockWarned) return;
+        wrongClockWarned = true;
+        console.warn(
+            `[Mirage] ${where} fell back to the browser timezone — her clock, weekday and `
+            + 'routine may be hours off. A script probably failed to load; reload the page.'
+        );
+        try {
+            MirageSimulation?.appendDebugDecision?.({
+                kind: 'notice',
+                summary: `Clock fallback: ${where} is using the browser timezone, not hers`
+            });
+        } catch { /* debug panel is optional */ }
+    }
+
     function clockParts(profile) {
         if (typeof MirageCalendar?.getSimDateParts === 'function') {
             return MirageCalendar.getSimDateParts(profile || S()?.profile);
         }
+        // Reachable only if calendar.js failed to load. getHours/getDay here are the
+        // *operator's* clock, so her whole daily rhythm would silently run on the wrong
+        // timezone — the same failure mode as B00. Make it visible.
+        warnWrongClockOnce('routine clock');
         const now = typeof MiragePhoneUX?.herNow === 'function'
             ? MiragePhoneUX.herNow()
             : new Date();

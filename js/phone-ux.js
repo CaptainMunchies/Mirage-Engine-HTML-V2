@@ -101,6 +101,27 @@
     let lastUserReceiptEl = null;
     let turnGen = 0;
 
+    /**
+     * These fallbacks compute *her* clock from the operator's browser timezone, which
+     * is wrong in a way nothing on screen reveals — the same silent-corruption shape as
+     * B00. They should be unreachable; if one ever fires, make sure it leaves a trace.
+     */
+    let wrongClockWarned = false;
+    function warnWrongClockOnce(where) {
+        if (wrongClockWarned) return;
+        wrongClockWarned = true;
+        console.warn(
+            `[Mirage] ${where} fell back to the browser timezone — her clock, weekday and `
+            + 'routine may be hours off. A script probably failed to load; reload the page.'
+        );
+        try {
+            MirageSimulation?.appendDebugDecision?.({
+                kind: 'notice',
+                summary: `Clock fallback: ${where} is using the browser timezone, not hers`
+            });
+        } catch { /* debug panel is optional */ }
+    }
+
     /** True when the runtime accepts this string as an IANA zone. */
     function isValidTimeZone(name) {
         const tz = String(name || '').trim();
@@ -351,6 +372,9 @@
             try {
                 weekday = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(now);
             } catch {
+                // getDay() is the *operator's* weekday, not hers. Only reachable if Intl
+                // itself is broken; say so rather than quietly showing the wrong day.
+                warnWrongClockOnce('phone-ux weekday');
                 weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][now.getDay()] || '';
             }
         }

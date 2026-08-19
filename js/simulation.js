@@ -1598,6 +1598,10 @@
                     try { URL.revokeObjectURL(src); } catch { /* ignore */ }
                 }
             });
+            // innerHTML = '' destroys the #phoneTyping node phone-ux created on demand.
+            // Without clearing presence too, any path that wipes the feed mid-typing
+            // leaves the header stuck reading "typing…" for a turn that no longer exists.
+            MiragePhoneUX?.showTyping?.(false);
             feed.innerHTML = '';
         }
         if (empty) empty.hidden = false;
