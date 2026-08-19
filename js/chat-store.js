@@ -41,17 +41,52 @@
         }
     }
 
+    /** Current store without re-entering migration — readStore() calls migrate first. */
+    function readStoreRaw() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return { version: 1, characters: {} };
+            const data = JSON.parse(raw);
+            if (!data.characters || typeof data.characters !== 'object') {
+                return { version: 1, characters: {} };
+            }
+            return data;
+        } catch {
+            return { version: 1, characters: {} };
+        }
+    }
+
+    /**
+     * Fold the pre-multi-chat `mirage_v2_sessions` key into the current store.
+     *
+     * This used to build a *fresh* `{ characters: {} }` and writeStore it, discarding
+     * whatever `mirage_v2_chats` already held — and it runs on every readStore(). It
+     * was only ever safe because the legacy key is deleted immediately afterwards. If
+     * that key ever came back — a restored backup, a synced profile, a partial import
+     * — the very next read destroyed every chat. Import makes that reachable, so this
+     * now merges into the existing store and never replaces a character that already
+     * has chats.
+     */
     function migrateLegacyOnce() {
         try {
             const legacyRaw = localStorage.getItem(LEGACY_KEY);
             if (!legacyRaw) return;
             const legacy = JSON.parse(legacyRaw);
-            if (!legacy || typeof legacy !== 'object') return;
+            if (!legacy || typeof legacy !== 'object') {
+                // Unparseable or empty legacy blob — drop it rather than retrying every read.
+                localStorage.removeItem(LEGACY_KEY);
+                return;
+            }
 
-            const store = { version: 1, characters: {} };
+            const store = readStoreRaw();
+            let migrated = 0;
             Object.entries(legacy).forEach(([charKey, entry]) => {
                 if (!entry) return;
+                // Never clobber a character that already has chats in the live store.
+                const existing = store.characters[charKey];
+                if (existing?.chats?.length) return;
                 const chatId = `chat-migrated-${charKey}`;
+                migrated += 1;
                 store.characters[charKey] = {
                     activeChatId: chatId,
                     chats: [{
@@ -80,9 +115,11 @@
                     }]
                 };
             });
-            writeStore(store);
+            if (migrated > 0) writeStore(store);
             localStorage.removeItem(LEGACY_KEY);
         } catch (e) {
+            // Leave LEGACY_KEY in place: a failed write (quota) should be retried,
+            // not silently discarded along with the only copy of that data.
             console.warn('[Mirage] Legacy session migration failed', e);
         }
     }
