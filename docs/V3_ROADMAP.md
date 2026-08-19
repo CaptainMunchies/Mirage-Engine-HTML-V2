@@ -703,7 +703,7 @@ valuable — the engine is well-factored in exactly the places these ideas touch
 
 | # | Idea | Difficulty | Why |
 |---|------|-----------|-----|
-| 1 | **10** · Random invented outfit (~20–30%) | **Trivial** | A coin flip in `applyOutfitChangeRequest`; `formatOutfitLibraryHint` already handles library-vs-invent |
+| 1 | **10** · Random invented outfit (**25%**) | **Trivial** | A weighted roll in `applyOutfitChangeRequest`; `formatOutfitLibraryHint` already handles library-vs-invent |
 | 2 | **13** · New shot types | **Easy** | `SHOT_TYPES` / `CROP_TYPES` are plain arrays; `goonFrame` is the precedent for a richer vocabulary |
 | 3 | **9** · "Let AI decide your response" | **Easy** | One extra thinking call written as the operator; the operator profile already exists |
 | 4 | **5** · TTS for chat messages | **Easy–Medium** | Browser `SpeechSynthesis` is free and instant; an API is needed only if Hebrew quality matters |
@@ -715,18 +715,25 @@ valuable — the engine is well-factored in exactly the places these ideas touch
 | 10 | **6** · Voice clone + voice notes | **High** | API is easy; the setup step, storage, consent and cost control are the work |
 | 11 | **7** · Video generation | **High** | Cost and latency, and face consistency across motion is the weakest part of current models |
 | 12 | **8** · Messenger bot | **High** | Needs a server, and platform content policy is the real blocker |
-| 13 | **4** · Stripe credits + app server | **Hardest** | Not a feature — a different product with a different risk profile |
+| 13 | **16** · Group chat with multiple AIs | **Very high** | The only idea here that breaks a core assumption: one chat = one character. Touches the store schema, the turn contract, the HUD, memory scoping and the whole delivery pipeline |
+| 14 | **4** · Stripe credits + app server | **Hardest** | Not a feature — a different product with a different risk profile |
 
 > **Idea 3 (PC UI overhaul) isn't listed** — it's already v3 Phase 5, briefed in §3.
 
 ### The easy tier
 
 **10 · Random invented outfit.** On `/change outfit`, sometimes ignore the library and invent.
-*Unspecified:* should the chance be tunable? Should an invented look be constrained by her established
-style, season and place, or genuinely free — an unanchored invention can drift off-character. And
-**should an invented outfit be remembered** and added to the library so it can recur? Without that she
-wears something once and never again, which is exactly the kind of small unrealism this engine
-otherwise works hard to avoid.
+**Decided: 25% chance of triggering.** That is a constant in the engine, not a Settings slider —
+tunable pacing knobs are what turn a character into a control panel, and 25% is frequent enough to
+surprise without making the library feel pointless.
+
+*Still unspecified, and worth pinning before anyone builds it:* should an invented look be constrained
+by her established style, season and place, or genuinely free — an unanchored invention can drift
+off-character. And **should an invented outfit be remembered** and added to the library so it can
+recur? Without that she wears something once and never again, which is exactly the kind of small
+unrealism this engine otherwise works hard to avoid. My read: constrain it to her style and the
+current season/place, and *do* write it back to the library, so the 25% roll grows her wardrobe over
+time instead of producing one-offs.
 
 **13 · New shot types** — body-only with lower face, body in mirror, POV from her eyes looking down
 with body in frame. *Unspecified:* are these new **shotTypes** or new **crops**? "POV looking down
@@ -826,6 +833,42 @@ review. All three require a publicly reachable server.
 would violate**, and enforcement is account-level. This isn't a technical risk, it's a "the account
 gets banned" risk, and it should be weighed before any engineering. *Also unspecified:* does the bot
 replace the web UI or mirror it, and does state sync both ways?
+
+**16 · Group chat with multiple AIs.** A thread with you and two or more characters in it, each with
+her own face, persona and metrics. Ranked second-hardest, and it's the only idea in this list that
+breaks a **founding assumption of the data model**: today a chat belongs to exactly one character —
+`mirage_v2_chats` is keyed by character, `charKey()` resolves one identity, the HUD shows one set of
+metrics, and one turn produces one reply from one person. Group chat makes every one of those plural.
+
+*What it actually requires, in rough order of pain:*
+
+- **The store schema.** A chat needs a participant list rather than an owner. Every read path that
+  assumes `characterKey(state)` has to be found and changed — and this is exactly the kind of sweeping
+  change that N4's overwrite-on-migrate bug turns into data loss, so it must land after that is fixed.
+- **The turn contract.** Two viable designs, and they produce different products. **One director call**
+  authoring every participant is cheaper and gives genuinely good banter, because one model sees the
+  whole room — but it collapses the disjoint identity ledgers into one prompt, which is the thing §1
+  guards most carefully. **N independent calls**, one per character, keeps each identity and her own
+  arousal/tease/engagement intact and is far truer to the engine's design — but costs N× per turn, and
+  they can't hear each other inside a single turn without a second pass. My read: N calls with a
+  cheap second "reaction" pass, because per-character metric authority is the thing that makes these
+  characters feel like people rather than voices.
+- **Photos.** Each character has her own face lock and anchor set, and multi-subject identity is where
+  current image models are weakest. The honest v1 is that **photos stay single-subject** — whoever is
+  posting — and a genuine group selfie is its own hard feature, closer to idea 7 in difficulty than to
+  anything here.
+- **Pacing.** Two characters replying means two independent delivery schedules interleaving in one
+  thread. Today there is exactly one, coordinated by seven pieces of module state. **This is dramatically
+  cheaper after Phase 7's planner/scheduler split** — a pure planner run per participant, one scheduler
+  merging their schedules. Before that split it is close to unbuildable without breaking delivery.
+- **Memory scoping.** A character must not know something she wasn't present for. That means a shared
+  thread memory *plus* a per-character ledger, and a rule about which one a callback may draw from.
+
+*Unspecified, and these change the whole shape:* Is it one group thread, or you texting two people in
+separate threads who know about each other? Do they speak to each other unprompted, or only when
+addressed? Does each keep her own engagement toward **you**, and can one of them resent the other for
+your attention — because that, rather than the logistics, is probably the actual product idea here,
+and it argues strongly for the per-character-metrics design over the single-director one.
 
 **4 · Stripe credits + app server.** Ranked hardest because it isn't a feature — it's a different
 product. It needs accounts, auth, payments, a server-side key vault, usage metering, fraud handling,
