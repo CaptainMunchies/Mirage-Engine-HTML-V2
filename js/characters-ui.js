@@ -75,6 +75,13 @@
             loadBtn.textContent = 'Load';
             loadBtn.addEventListener('click', () => loadCharacter(entry.id));
 
+            const exportBtn = document.createElement('button');
+            exportBtn.type = 'button';
+            exportBtn.className = 'btn btn-ghost btn-sm';
+            exportBtn.textContent = 'Export';
+            exportBtn.title = 'Save this character, its chats, face lock and photos to a .mirage file';
+            exportBtn.addEventListener('click', () => exportCharacter(entry.id, entry.label, exportBtn));
+
             const delBtn = document.createElement('button');
             delBtn.type = 'button';
             delBtn.className = 'btn btn-ghost btn-sm';
@@ -82,6 +89,7 @@
             delBtn.addEventListener('click', () => deleteCharacter(entry.id, entry.label));
 
             actions.appendChild(loadBtn);
+            actions.appendChild(exportBtn);
             actions.appendChild(delBtn);
 
             item.appendChild(meta);
@@ -294,6 +302,42 @@
                 beginNewSimulation();
             }
         });
+    }
+
+    /** Save one character — profile, chats, anchors, photos, turn images — to a file. */
+    async function exportCharacter(id, label, btn) {
+        const original = btn?.textContent;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+        }
+        try {
+            const includeImages = document.getElementById('checkBackupPhotos')?.checked !== false;
+            const res = await MirageBackup.exportCharacter(id, {
+                includePhotos: includeImages,
+                includeTurnImages: includeImages,
+                includeUserProfiles: false
+            });
+            MirageUI.toast(
+                `Exported “${label || 'character'}” (${MirageBackup ? formatBytes(res.bytes) : ''}).`,
+                'success'
+            );
+        } catch (err) {
+            console.error('[Mirage] Character export failed', err);
+            MirageUI.toast(err?.message || 'Export failed.', 'error');
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = original || 'Export';
+            }
+        }
+    }
+
+    function formatBytes(bytes) {
+        const n = Number(bytes) || 0;
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+        return `${(n / (1024 * 1024)).toFixed(1)} MB`;
     }
 
     function deleteCharacter(id, label) {

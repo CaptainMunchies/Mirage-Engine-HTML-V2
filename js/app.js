@@ -108,7 +108,92 @@
         const modelGuideOverlay = document.getElementById('modelGuideOverlay');
         const btnCloseModelGuide = document.getElementById('btnCloseModelGuide');
         const modelGuideBody = document.getElementById('modelGuideBody');
+        const backupAllBtn = document.getElementById('btnBackupAll');
+        const restoreBtn = document.getElementById('btnRestoreBackup');
+        const backupFileInput = document.getElementById('backupFileInput');
+        const backupPhotosCheck = document.getElementById('checkBackupPhotos');
+        const backupStatus = document.getElementById('backupStatus');
         let sceneThinkingUnlocked = false;
+
+        function formatBytes(bytes) {
+            const n = Number(bytes) || 0;
+            if (n < 1024) return `${n} B`;
+            if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+            return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+        }
+
+        function setBackupStatus(text, tone) {
+            if (!backupStatus) return;
+            backupStatus.textContent = text || '';
+            backupStatus.dataset.tone = tone || '';
+        }
+
+        async function runBackupAll() {
+            if (!window.MirageBackup) return;
+            const count = MirageProfileStore?.list?.().length || 0;
+            if (!count) {
+                setBackupStatus('Nothing to back up yet — save a character first.', 'warn');
+                return;
+            }
+            const includeImages = backupPhotosCheck?.checked !== false;
+            backupAllBtn.disabled = true;
+            backupAllBtn.textContent = 'Preparing…';
+            setBackupStatus('Collecting characters, chats and images…');
+            try {
+                const res = await MirageBackup.exportEverything({
+                    includePhotos: includeImages,
+                    includeTurnImages: includeImages
+                });
+                setBackupStatus(
+                    `Saved ${res.characters} character${res.characters === 1 ? '' : 's'} `
+                    + `(${formatBytes(res.bytes)}). Keep this file somewhere outside the browser.`,
+                    'ok'
+                );
+            } catch (err) {
+                console.error('[Mirage] Backup failed', err);
+                setBackupStatus(err?.message || 'Backup failed — see the browser console.', 'error');
+            } finally {
+                backupAllBtn.disabled = false;
+                backupAllBtn.textContent = 'Back up everything';
+            }
+        }
+
+        async function runRestore(file) {
+            if (!file || !window.MirageBackup) return;
+            restoreBtn.disabled = true;
+            restoreBtn.textContent = 'Restoring…';
+            setBackupStatus(`Reading ${file.name}…`);
+            try {
+                const res = await MirageBackup.importFromFile(file, {
+                    onProgress: msg => setBackupStatus(msg)
+                });
+                const bits = [
+                    `${res.imported} character${res.imported === 1 ? '' : 's'}`,
+                    `${res.chats} chat${res.chats === 1 ? '' : 's'}`,
+                    `${res.photos} photo${res.photos === 1 ? '' : 's'}`,
+                    `${res.images} generated image${res.images === 1 ? '' : 's'}`
+                ];
+                const renamed = res.renamed
+                    ? ` ${res.renamed} arrived under a new name because a character with that id was already here — nothing was replaced.`
+                    : '';
+                setBackupStatus(`Restored ${bits.join(', ')}.${renamed}`, 'ok');
+                MirageCharactersUI?.renderList?.();
+                MirageCharactersUI?.refreshWelcome?.();
+                MirageUserProfilesUI?.refresh?.();
+                MirageSetupProfile?.updateProfileSaveUi?.();
+            } catch (err) {
+                console.error('[Mirage] Restore failed', err);
+                setBackupStatus(err?.message || 'Restore failed — see the browser console.', 'error');
+            } finally {
+                restoreBtn.disabled = false;
+                restoreBtn.textContent = 'Restore from file…';
+                if (backupFileInput) backupFileInput.value = '';
+            }
+        }
+
+        backupAllBtn?.addEventListener('click', runBackupAll);
+        restoreBtn?.addEventListener('click', () => backupFileInput?.click());
+        backupFileInput?.addEventListener('change', (e) => runRestore(e.target.files?.[0]));
 
         function expectedSceneThinkingId(prov, thinkingId) {
             if (typeof MirageModels.pairedSceneThinking === 'function') {

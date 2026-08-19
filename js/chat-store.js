@@ -481,6 +481,38 @@
         return listChats(charKey).find(c => c.id === chatId) || null;
     }
 
+    /**
+     * Add restored chats to a character, keeping anything already there.
+     * A chat whose id collides gets a fresh one rather than replacing the
+     * resident chat — an import must never be able to destroy live work.
+     * @returns {Array<{from: string, to: string}>} ids that had to be reassigned
+     */
+    function importChats(charKey, chats) {
+        if (!charKey || !Array.isArray(chats) || !chats.length) return [];
+        const store = readStore();
+        const rec = store.characters[charKey] || { activeChatId: null, chats: [] };
+        const taken = new Set(rec.chats.map(c => c.id));
+        const remapped = [];
+
+        chats.forEach(chat => {
+            if (!chat || typeof chat !== 'object') return;
+            let id = chat.id;
+            if (!id || taken.has(id)) {
+                const next = `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+                remapped.push({ from: id || '(none)', to: next });
+                id = next;
+            }
+            taken.add(id);
+            rec.chats.push({ ...chat, id });
+        });
+
+        rec.chats.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+        if (!rec.activeChatId && rec.chats[0]) rec.activeChatId = rec.chats[0].id;
+        store.characters[charKey] = rec;
+        writeStore(store);
+        return remapped;
+    }
+
     function getActiveChatId(charKey) {
         if (!charKey) return null;
         return readStore().characters[charKey]?.activeChatId || null;
@@ -983,6 +1015,7 @@
     global.MirageChatStore = {
         characterKey,
         listChats,
+        importChats,
         getChat,
         getActiveChat,
         getActiveChatId,

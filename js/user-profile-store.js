@@ -90,6 +90,37 @@
         }));
     }
 
+    /** Snapshot for a backup bundle. */
+    function exportAll() {
+        const store = readStore();
+        return { version: VERSION, activeId: store.activeId, profiles: store.profiles };
+    }
+
+    /**
+     * Merge restored operator profiles in. Existing profiles win on an id collision —
+     * a restore adds what is missing, it never rewrites who you currently are. The
+     * active selection is likewise left alone unless nothing is active yet.
+     */
+    function importAll(data) {
+        const incoming = Array.isArray(data?.profiles) ? data.profiles : [];
+        if (!incoming.length) return { added: 0 };
+        const store = readStore();
+        const taken = new Set(store.profiles.map(p => p.id));
+        let added = 0;
+        incoming.forEach(raw => {
+            const profile = hydrateProfile(raw);
+            if (!profile || taken.has(profile.id)) return;
+            taken.add(profile.id);
+            store.profiles.push(profile);
+            added += 1;
+        });
+        if (!store.activeId && data?.activeId && taken.has(data.activeId)) {
+            store.activeId = data.activeId;
+        }
+        if (added) writeStore(store);
+        return { added };
+    }
+
     function makeId(label) {
         const slug = String(label || 'user')
             .toLowerCase()
@@ -304,6 +335,8 @@
         SEED_ID,
         list,
         get,
+        exportAll,
+        importAll,
         getActive,
         getActiveId,
         setActive,

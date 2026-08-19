@@ -3017,13 +3017,14 @@ select:disabled {
     min-height: 0;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.15fr) auto;
     grid-template-areas:
         "conn models chat"
-        "user images dev";
+        "user images dev"
+        "backup backup backup";
     gap: 0.85rem;
     padding: 0.85rem 1.25rem;
-    overflow: hidden;
+    overflow: auto;
 }
 .settings-card {
     display: flex;
@@ -3041,6 +3042,16 @@ select:disabled {
 .settings-card-chat { grid-area: chat; }
 .settings-card-images { grid-area: images; }
 .settings-card-dev { grid-area: dev; }
+.settings-card-backup { grid-area: backup; }
+.backup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+}
+#backupStatus[data-tone="ok"] { color: var(--ok, #5ac68a); }
+#backupStatus[data-tone="warn"] { color: var(--warn, #d8a63c); }
+#backupStatus[data-tone="error"] { color: var(--error, #e06c75); }
 .settings-card .field { margin-bottom: 0.7rem; }
 .settings-card .field-last { margin-bottom: 0; }
 .settings-card-head {
@@ -3096,7 +3107,8 @@ select:disabled {
         grid-template-areas:
             "conn models"
             "user chat"
-            "images dev";
+            "images dev"
+            "backup backup";
         overflow: auto;
     }
 }
@@ -3109,7 +3121,8 @@ select:disabled {
             "user"
             "chat"
             "images"
-            "dev";
+            "dev"
+            "backup";
         padding: 0.75rem;
     }
     .settings-header,

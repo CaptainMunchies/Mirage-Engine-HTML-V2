@@ -987,6 +987,37 @@
                     </div>
                 </section>
 
+                <section class="settings-card settings-card-backup" aria-labelledby="settingsBackupHeading">
+                    <div class="settings-card-head">
+                        <h3 id="settingsBackupHeading">Data &amp; backup</h3>
+                        <span class="settings-card-tag">Safety</span>
+                    </div>
+                    <p class="field-hint">
+                        Everything — characters, chats, face locks, photo libraries — lives only in this
+                        browser profile. Clearing site data or reinstalling the browser destroys it with
+                        no recovery. A <code>.mirage</code> file is the only copy that survives that.
+                    </p>
+
+                    <div class="field field-checkbox">
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="checkBackupPhotos" checked>
+                            <span>Include photos and generated images</span>
+                        </label>
+                        <p class="field-hint">
+                            Off makes a much smaller file: characters, chats and face locks still restore,
+                            but the photo library and past generated images are left out. Face and body
+                            references always travel — without them a restored character can't generate.
+                        </p>
+                    </div>
+
+                    <div class="backup-actions">
+                        <button type="button" class="btn btn-primary" id="btnBackupAll">Back up everything</button>
+                        <button type="button" class="btn" id="btnRestoreBackup">Restore from file…</button>
+                        <input type="file" id="backupFileInput" accept=".mirage,application/json" hidden>
+                    </div>
+                    <p class="field-hint" id="backupStatus" aria-live="polite"></p>
+                </section>
+
                 <section class="settings-card settings-card-dev" aria-labelledby="settingsDevHeading">
                     <div class="settings-card-head">
                         <h3 id="settingsDevHeading">Developer</h3>
@@ -1261,6 +1292,7 @@
     <script src="js/media-library.js?v=199"></script>
     <script src="js/anchor-store.js?v=199"></script>
     <script src="js/chat-store.js?v=199"></script>
+    <script src="js/backup.js?v=199"></script>
     <script src="js/pending-turn.js?v=199"></script>
     <script src="js/commands.js?v=199"></script>
     <script src="js/errors.js?v=199"></script>
