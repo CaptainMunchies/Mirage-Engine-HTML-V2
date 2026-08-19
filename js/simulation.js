@@ -3631,9 +3631,14 @@
             || MirageImmersion?.isComeBackHold?.()
         );
         if (cmd.proceed && cmd.pinOnly && ghostHold && !cmd.mustDeliver && !internal) {
-            if (cmd.clientNote) appendSystemNote(cmd.clientNote);
+            // This path returns before the normal command bubble is appended further
+            // down, so echo the command here — otherwise `/arousal 80` during a ditch
+            // hold moves a HUD number and leaves no trace anywhere that it was deferred.
+            const pinText = cmd.userText || String(rawText || '').trim();
+            if (pinText) appendChat('user', pinText, { isCommand: true });
+            if (cmd.clientNote) appendSystemNote(cmd.clientNote, { essential: true });
             updateHud();
-            MirageUI.toast('Pinned — she’ll use it when she next texts.', 'info');
+            appendSystemNote('Pinned — she’ll use it when she next texts.', { essential: true });
             return;
         }
 

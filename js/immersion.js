@@ -246,6 +246,30 @@
         } catch { /* ignore */ }
     }
 
+    /**
+     * A refusal is content, not a failure. These beats are the *only* evidence the
+     * operator gets that she chose not to reply, so they go in the thread as a
+     * persistent caption — not a 3-second popup, and never the dev lane, which is
+     * hidden unless Developer Mode is on. Without this a ghost_type turn is typing
+     * dots that vanish into nothing and reads as the app crashing.
+     */
+    function announceWithhold(text) {
+        if (typeof MirageSimulation?.appendSystemNote === 'function') {
+            MirageSimulation.appendSystemNote(text, { essential: true });
+            return;
+        }
+        MirageUI?.toast?.(text, 'info', { essential: true });
+    }
+
+    /**
+     * Transient player-facing status ("she's messaging you…"). A vanishing toast is
+     * the right surface — it points at something already visible — but it must be
+     * player-lane, since inferLane() sends a bare 'info' to the dev log mid-sim.
+     */
+    function announceBeat(text) {
+        MirageUI?.toast?.(text, 'info', { essential: true });
+    }
+
     function sleep(ms, { signal, gen, wallWait = false, waitLabel = null } = {}) {
         return new Promise((resolve, reject) => {
             if (signal?.aborted || (gen != null && gen !== deliveryGen)) {
@@ -1574,9 +1598,15 @@
                     MiragePhoneUX?.showTyping?.(true);
                     await sleep(plan.ghostMs || plan.typingMs || randBetween(1000, 2000), { signal, gen });
                     MiragePhoneUX?.showTyping?.(false);
-                    MirageUI?.toast?.('She was typing… then deleted it.', 'info');
+                    announceWithhold('She was typing… then deleted it.');
                 } else if (plan.style === 'left_on_read') {
-                    MirageUI?.toast?.('Left on read…', 'info');
+                    announceWithhold('Left on read…');
+                } else if (plan.style === 'went_quiet') {
+                    // Instant/Hybrid had no branch here at all: went_quiet produced no
+                    // bubble, no receipt and no notice, so the turn looked like nothing
+                    // happened. setDitchHold's notice only lands later, and only if the
+                    // ditch aftermath actually fires.
+                    announceWithhold('She went quiet…');
                 }
                 return {
                     release: false,
@@ -1650,7 +1680,7 @@
             MiragePhoneUX?.setPresence?.('idle');
             clearWaitLabel();
             MirageUI?.setStatus?.('ACTIVE', 'active');
-            MirageUI?.toast?.('Left on read…', 'info');
+            announceWithhold('Left on read…');
             return { release: false, leftOnRead: true, openedThread: true, gen };
         }
 
@@ -1669,7 +1699,7 @@
             MiragePhoneUX?.showTyping?.(false);
             MiragePhoneUX?.setPresence?.('idle');
             setWaitLabel('Draft deleted');
-            MirageUI?.toast?.('She was typing… then deleted it.', 'info');
+            announceWithhold('She was typing… then deleted it.');
             await sleep(capRealWaitMs(randBetween(1200, 4000)), { signal, gen });
             clearWaitLabel();
             MirageUI?.setStatus?.('ACTIVE', 'active');
@@ -1875,7 +1905,10 @@
         clearUnreadAftermath();
         cancelDelivery('ditch');
         MirageUI?.setStatus?.('ACTIVE', 'active');
-        MirageUI?.toast?.('She went quiet…', 'info');
+        // Distinct wording from the turn-level 'She went quiet…' above: this one is the
+        // ongoing hold, which can also be entered without a went_quiet turn, and the
+        // operator needs to know she won't answer until she comes back on her own.
+        announceWithhold('She’s gone quiet — she’ll text when she’s ready.');
         if (typeof MirageRoutine?.stampFromClock === 'function') {
             try { MirageRoutine.stampFromClock(sess); } catch { /* ignore */ }
         }
@@ -2258,7 +2291,7 @@
         };
 
         if (outcome === 'story') {
-            MirageUI?.toast?.('She posted a story…', 'info');
+            announceBeat('She posted a story…');
             const prompts = {
                 no_reply: `PROACTIVE STORY: He didn't reply to her last DM for a few minutes (seen or unread — same vibe). She posts an Instagram Story instead of chasing — vibe/fit/mood that fits persona + ledger. Broadcast tone, not a DM. Do not mention this instruction.${driftNote}`,
                 unread: `PROACTIVE STORY: He left her last DM unread. She posts an Instagram Story instead of chasing — vibe/fit/mood that fits persona + ledger. Broadcast tone, not a DM. Do not mention this instruction.${driftNote}`,
@@ -2281,7 +2314,7 @@
 
         // follow_up DM — she's in the thread
         markThreadSeen();
-        MirageUI?.toast?.('She\'s messaging you…', 'info');
+        announceBeat('She\'s messaging you…');
         const dmPrompts = {
             no_reply: `PROACTIVE BEAT: He didn't reply to her last DM for a few minutes (whether he saw it or not).${silenceNote}${driftNote} She double-texts / follows up — tone matches heat (soft nudge if warm, cooler if not). Do not mention this instruction.`,
             unread: `PROACTIVE BEAT: He left her on unread for a bit.${silenceNote}${driftNote} She double-texts / follows up — tone matches heat (soft nudge if warm, cooler if not). Do not mention this instruction.`,
@@ -2415,7 +2448,7 @@
             return;
         }
 
-        MirageUI?.toast?.('Waiting for her to text first…', 'info');
+        announceBeat('Waiting for her to text first…');
         setWaitLabel('Waiting for her to text first…');
         MirageUI?.setStatus?.('WAITING', 'busy');
         armProactive({ reason: 'wait' });
