@@ -131,6 +131,7 @@ Everything here is a defect with a known fix and a known location. Finding IDs r
 | **D3** | **Unhandled rejection on delete** (`profile-store.js:172-177`) | Two `async` cleanups wrapped in a *synchronous* `try/catch`, which cannot catch a promise rejection. A failed IndexedDB delete surfaces as an unhandled rejection instead of being swallowed. Use `.catch()` as the codebase does elsewhere. |
 | **B5** | **Launcher pins Python 3.11** | `py -3.11` dies instantly on any other version, then the browser opens a dead port with no error. Add fallbacks and fail loudly. |
 | **B8** | **`STOP MIRAGE` kills any process on 8080** | It `taskkill`s whoever owns the port without checking it's Mirage. |
+| **N5** | **The body reference leaks between characters — and is saved onto the wrong one** (`characters-ui.js:104-135`) | `startNewCharacterDraft` calls `clearMasterFace()` but **never `clearBodyReference()`**, and `resetSimulationRuntime` doesn't touch it either — the only callers of `clearBodyReference` are Face Lock's explicit Clear button, its two error paths, and `resetSession()`. So starting a new character draft carries the *previous* character's body reference forward, it is used as the BODY proportions ref for image generation, and because `exportSnapshot` reads `state.masterBodyFile` at save time (`profile-store.js:94`) **it gets written onto the new character**. Cross-character contamination that persists to disk. |
 | **N4** | **Legacy migration overwrites all chats** (`chat-store.js:44-88`) | `migrateLegacyOnce` builds a *fresh* `{ characters: {} }` from the legacy `mirage_v2_sessions` key and `writeStore`s it — discarding whatever `mirage_v2_chats` currently holds. It runs on **every** `readStore()`, and it is only safe because it deletes the legacy key afterwards. If that key ever reappears — a restored backup, a synced profile, a partial import — the very next read silently destroys every chat. **This matters specifically because Phase 1 builds import.** Make it merge, and gate it on the target being empty. |
 
 #### 1b — Cleanups, minutes each
@@ -157,6 +158,13 @@ find and start using.
 | **N1** | **All three IndexedDB stores cache a rejected open** (`image-store.js:13-27`, `anchor-store.js:16-31`, `media-library.js:20-35`). `dbPromise` is assigned the promise before it settles, so if `indexedDB.open` ever fails — private-browsing mode, storage pressure, a corrupted profile — the rejected promise is cached for the rest of the session. Every later image save, anchor read and photo load fails permanently, with no retry short of a page reload. Null `dbPromise` in the error path |
 | **N2** | **No `onblocked` handler on any IDB open.** Harmless today because all three databases sit at version 1 — but the migration work this roadmap plans *requires* bumping a version, and at that point a second open tab blocks the upgrade, `openDb()` never settles, and every awaiting operation hangs silently with no error. Add the handler before the first migration, not after |
 | **N3** | **Destructive deletes sit behind a native `confirm()`** (`characters-ui.js:301`, `chats-ui.js:185`, `user-profiles-ui.js:154`, `setup-profile.js:359`). Deleting a character permanently destroys its chats, anchors and photo library, and until export ships in Phase 1 there is no recovery from a misclick. Also the only unstyled dialogs in an app that otherwise uses custom modals — fold into the Phase 5 overhaul |
+| **N6** | `openSessionChoice` (`characters-ui.js:198-206`) reads `latest.protocol` and `latest.lastTurn` **before** its own `disabled = !latest` null check three lines later. Safe today only because the one caller checks `chatCount > 0` first — a second caller throws a `TypeError` |
+| **N7** | Saving a character writes localStorage **twice** (`characters-ui.js:332-357`) — `saveWithAnchors`, then a second `save` carrying the media-library metadata. If the second write hits the quota ceiling the anchors persist but the metadata doesn't, leaving a half-saved character. Make it one atomic write; it matters more once import exists |
+| **N8** | Face Lock lets you pick a **body reference the active setting silently ignores**. With reference mode on "Face only", `effectiveReferenceMode()` discards the choice at generation time with no indication — the hint text states the requirement but nothing enforces or reflects it |
+| **N9** | `protocolBadge` is interpolated into `innerHTML` **unescaped** (`chats-ui.js:84`) inside a template that carefully escapes the label and preview either side of it. Not exploitable today (protocol and mode are client-owned enums), but the inconsistency is worth closing while the file is open |
+| **N10** | Photos are identified by `file.name` (`setup-face.js:161`, `:212`, `:328`). Two images with the same filename — `IMG_0001.jpg` being the obvious case — collide in selection state and in the `querySelector` lookup at `:129` |
+| **N11** | `restoreChatUi()` is async and called without `await` or `.catch` after deleting the active chat (`chats-ui.js:196`). Same family as D3 |
+| — | The saved-chats list reports `history.length` as "turns" (`chats-ui.js:84`), but history is capped at 100 — so every long chat reads "100 turns" forever |
 
 **Done when:** a character in Atlanta shows Atlanta time · a `ghost_type` turn visibly explains itself
 with Developer Mode off · a pin during a ghost hold says so · a timeout says "timed out" · the proxy
@@ -266,6 +274,13 @@ listed above; the Phase 2 recording still passes unchanged.
 The goal all of this was protecting. **The design brief is §3** — the premise (it's the operator's
 phone), the one-thread unification, the two modes, the layout tiers, the live-state restructure and
 the setup previews. Phase 5 is the execution of that brief.
+
+**The agent may not be the one who wrote this.** The overhaul will likely be driven from Cursor
+(Grok 4.6 built v2 there), not from the conversation that produced these documents. That has two
+consequences worth planning for: an agent in Cursor reads **repo files**, not chat history — so this
+roadmap, the UI brief and the README are its actual context — and it will read the README, which
+currently documents a persona that no longer exists, a tease scale that means something else, and a
+Google-only app. That is the strongest argument for open decision 3.
 
 **How to brief the agent:**
 - Point it at the gallery as its workspace.
@@ -537,8 +552,37 @@ deliberately not being fixed say so and say why.
 | N1 | All three IndexedDB stores cache a rejected open | **Phase 1b** |
 | N2 | No `onblocked` handler on IDB open — activated by the planned migration work | **Phase 1b** |
 | N3 | Destructive deletes behind a native `confirm()`, no undo, no backup yet | **Phase 1b** + Phase 5 |
-| N4 | **Legacy chat migration overwrites instead of merging** — see below | **Phase 1a** |
+| N4 | **Legacy chat migration overwrites instead of merging** | **Phase 1a** |
+| N5 | **Body reference leaks between characters and is saved onto the wrong one** | **Phase 1a** |
+| N6 | `openSessionChoice` dereferences before its own null check | **Phase 1b** |
+| N7 | Character save writes localStorage twice — partial-save risk on quota | **Phase 1b** |
+| N8 | Body reference selectable while the setting silently ignores it | **Phase 1b** + Phase 5 |
+| N9 | `protocolBadge` unescaped in `innerHTML` | **Phase 1b** |
+| N10 | Photos identified by filename — duplicates collide | **Phase 1b** |
+| N11 | `restoreChatUi()` unawaited after deleting the active chat | **Phase 1b** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
+
+### Review depth — stated honestly
+
+Not every file was read to the same standard, and the difference matters when judging how complete
+this list is.
+
+**Read line by line:** `index.html`, `mirage_server.py`, `state.js`, `commands.js`, `api.js`,
+`errors.js`, `safety-gates.js`, `pending-turn.js`, `memory-ledger.js`, `control-deck.js`,
+`image-store.js`, `setup-face.js`, `characters-ui.js`, `chats-ui.js`, both `.bat` files — plus the
+turn pipeline, `applyTracking`, cancel/rollback, shot variance and chat/toast plumbing in
+`simulation.js`; the schema blocks, registries, awakening, `RENDER_DOCTRINE` and budget compressor in
+`mirage-prompt.js`; the wait primitives, `choreograph` and `cancelDelivery` in `immersion.js`; and the
+clock/timezone paths in `phone-ux.js`.
+
+**Scanned by pattern, not read in full:** `setup-media.js`, `setup-protocol.js`, most of
+`setup-profile.js`, `user-profiles-ui.js`, `user-profile-store.js`, `debug-panel.js`, and the bulk of
+`chat-store.js`, `loyalty-ux.js`, `calendar.js` and `routine.js` — roughly **3,500 lines**.
+
+Nothing observed suggests defects in the scanned set, but "scanned" is not "reviewed". Every deep
+finding in this document — B00, B0, N4, N5 — came from reading, not scanning, so the honest
+expectation is that more remain in those files. **Phase 2's failure-case suite is the instrument that
+finds them**, because it executes those paths rather than relying on anyone reading well.
 
 **Also verified as *not* bugs**, so nobody re-investigates them: character deletion cleans up fully
 (`profile-store.js:168-178`); `#phoneTyping` is created on demand, not missing; there are no timer
@@ -575,7 +619,15 @@ because that ceiling gets hit in practice. Consolidating into IndexedDB — whic
 cliff — retires that failure mode entirely rather than continuing to explain it to the user. A
 storage-usage meter would also stop the cliff being a surprise.
 
-**5 — The app phones two third parties.** `calendar.js:570` and `:579` fetch the holiday catalogue
+**5 — There is no plain-language version of any of this.** All four documents are written for
+someone comfortable with the codebase. You've said directly that the technical register is hard to
+follow, and v2 was built by an agent rather than by hand — so the person who has to act on this plan
+is not the person who wrote the code. A one-page plain-English summary — what's broken, what it costs
+you in play, what happens in what order — would make the plan usable without a translator, including
+by you in three months. Cheap to write, and the only artefact here that survives handing the project
+to anyone else.
+
+**6 — The app phones two third parties.** `calendar.js:570` and `:579` fetch the holiday catalogue
 from **`www.hebcal.com`** and **`date.nager.at`** directly from the browser, on boot, outside the
 local proxy. The hebcal call sends `geo=none`, but the nager call includes a **country code derived
 from her profile location**. Those are the only two outbound hosts in the app that have nothing to do
