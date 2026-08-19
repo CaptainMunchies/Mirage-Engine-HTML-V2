@@ -1,0 +1,284 @@
+{
+  "scenario": "memory-ledger",
+  "why": "The ledger is what makes callbacks feel sticky. Records what gets added, what survives eviction at the 8-item cap, and what a resolve closes.",
+  "turns": [
+    {
+      "changed": {
+        "(initial)": {
+          "arousal": 18,
+          "awakeningActive": false,
+          "awakeningStage": "off",
+          "awareness": 0,
+          "engagement": 72,
+          "env": "her place",
+          "herStreak": 0,
+          "historyLength": 1,
+          "lastShotType": "Front Selfie / Bust / eye",
+          "memoryLedger": [
+            {
+              "kind": "plan",
+              "resolved": false,
+              "text": "they plan to meet on friday evening"
+            },
+            {
+              "kind": "tension",
+              "resolved": false,
+              "text": "he did not reply for a whole day"
+            },
+            {
+              "kind": "promise",
+              "resolved": false,
+              "text": "she promised to send a photo tonight"
+            }
+          ],
+          "mode": "DM",
+          "mood": "Warm",
+          "moodIntensity": 1,
+          "outfit": "casual day look",
+          "persona": "Standard",
+          "shotHistory": [
+            "Front Selfie / Bust / eye"
+          ],
+          "socialHold": null,
+          "tease": 0,
+          "thermal": "Normal"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "normal",
+            "presenceBand": "cold",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "hey",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 1,
+          "to": 2
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "POV / Torso / high"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "about friday",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 2,
+          "to": 3
+        },
+        "lastShotType": {
+          "from": "POV / Torso / high",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "reaction",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "reaction",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → reaction"
+        }
+      ],
+      "input": "you still owe me a photo",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 3,
+          "to": 5
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "POV / Torso / high"
+        },
+        "memoryLedger": {
+          "from": [
+            {
+              "kind": "plan",
+              "resolved": false,
+              "text": "they plan to meet on friday evening"
+            },
+            {
+              "kind": "tension",
+              "resolved": false,
+              "text": "he did not reply for a whole day"
+            },
+            {
+              "kind": "promise",
+              "resolved": false,
+              "text": "she promised to send a photo tonight"
+            }
+          ],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: did you forget"
+            },
+            {
+              "kind": "plan",
+              "resolved": false,
+              "text": "they plan to meet on friday evening"
+            },
+            {
+              "kind": "tension",
+              "resolved": false,
+              "text": "he did not reply for a whole day"
+            },
+            {
+              "kind": "promise",
+              "resolved": false,
+              "text": "she promised to send a photo tonight"
+            }
+          ]
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": true,
+            "picked": "double_text",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "reaction",
+            "suggested": "double_text",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        }
+      ],
+      "input": "did you forget",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 5,
+          "to": 6
+        },
+        "lastShotType": {
+          "from": "POV / Torso / high",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "so?",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 6,
+          "to": 7
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "POV / Torso / high"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "POV / Torso / high"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "ok",
+      "notices": []
+    }
+  ],
+  "pageErrors": []
+}

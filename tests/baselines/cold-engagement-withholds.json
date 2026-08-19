@@ -1,0 +1,458 @@
+{
+  "scenario": "cold-engagement-withholds",
+  "why": "The refusal system. Held at low engagement so ghost_type, left_on_read and went_quiet are all reachable, recording what the operator is shown.",
+  "turns": [
+    {
+      "changed": {
+        "(initial)": {
+          "arousal": 18,
+          "awakeningActive": false,
+          "awakeningStage": "off",
+          "awareness": 0,
+          "engagement": 12,
+          "env": "her place",
+          "herStreak": 0,
+          "historyLength": 1,
+          "lastShotType": "Front Selfie / Bust / eye",
+          "memoryLedger": [],
+          "mode": "DM",
+          "mood": "Warm",
+          "moodIntensity": 1,
+          "outfit": "casual day look",
+          "persona": "Standard",
+          "shotHistory": [
+            "Front Selfie / Bust / eye"
+          ],
+          "socialHold": null,
+          "tease": 0,
+          "thermal": "Normal"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "double_text",
+            "presenceBand": "cold",
+            "presenceVeto": true,
+            "rolled": "double_text",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        },
+        {
+          "detail": {
+            "reason": "missing secondMessage",
+            "suggested": "double_text"
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal (double_text demoted — missing secondMessage)"
+        }
+      ],
+      "input": "hey",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 1,
+          "to": 2
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "reaction",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "reaction",
+            "suggested": "slow",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → reaction"
+        }
+      ],
+      "input": "you there",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 2,
+          "to": 3
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "reaction",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "reaction",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → reaction"
+        }
+      ],
+      "input": "answer me",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 3,
+          "to": 5
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "memoryLedger": {
+          "from": [],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: seriously?"
+            }
+          ]
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": true,
+            "picked": "double_text",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "double_text",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        }
+      ],
+      "input": "seriously?",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 5,
+          "to": 6
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        },
+        "socialHold": {
+          "from": null,
+          "to": "busy_later"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "ghost_type",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "double_text",
+            "suggested": "ghost_type",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → ghost_type"
+        },
+        {
+          "detail": {
+            "openedThread": true,
+            "pacing": "instant",
+            "silenceSimMs": 154724.50219094753,
+            "style": "ghost_type"
+          },
+          "kind": "withhold",
+          "summary": "Withhold reply (ghost_type) — 3 min sim silence"
+        },
+        {
+          "detail": {
+            "allowStory": true,
+            "difficulty": "medium",
+            "engagement": 12,
+            "heat": 5,
+            "kind": "ghost",
+            "picked": "story",
+            "weights": {
+              "ditch": 2.46,
+              "follow_up": 1.8780000000000001,
+              "story": 2.0944
+            }
+          },
+          "kind": "social",
+          "summary": "Social beat → story (ghost)"
+        }
+      ],
+      "input": "ok fine",
+      "notices": [
+        {
+          "essential": true,
+          "text": "She was typing… then deleted it.",
+          "via": "systemNote"
+        },
+        {
+          "text": "3 min passed without a reply.",
+          "via": "caption"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 6,
+          "to": 7
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ]
+        },
+        "socialHold": {
+          "from": "busy_later",
+          "to": null
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 3,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": true,
+            "picked": "normal",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "left_on_read",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "hello?",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 7,
+          "to": 8
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 2,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "normal",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "went_quiet",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "come on",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 8,
+          "to": 9
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "memoryLedger": {
+          "from": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: seriously?"
+            }
+          ],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: please"
+            },
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: seriously?"
+            }
+          ]
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 1,
+            "difficulty": "medium",
+            "engagement": 12,
+            "needsReply": false,
+            "picked": "normal",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "please",
+      "notices": []
+    }
+  ],
+  "pageErrors": []
+}

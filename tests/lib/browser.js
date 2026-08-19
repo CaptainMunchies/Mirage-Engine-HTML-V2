@@ -30,7 +30,12 @@ async function launchBrowser() {
  * @param {{origin: string, config?: object, deterministic?: boolean, seed?: number}} opts
  */
 async function openApp(browser, { origin, config = {}, deterministic = false, seed } = {}) {
-    const context = await browser.newContext({ acceptDownloads: true });
+    const context = await browser.newContext({
+        acceptDownloads: true,
+        // Pinned so a recording made on one machine matches one made on another:
+        // chat labels and any bare toLocaleString go through these.
+        ...(deterministic ? { locale: 'en-US', timezoneId: 'UTC' } : {})
+    });
     const page = await context.newPage();
 
     const errors = [];

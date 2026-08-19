@@ -1,0 +1,445 @@
+{
+  "scenario": "plain-conversation",
+  "why": "The ordinary path: eight turns of nothing special. Catches drift in the delivery ladder, metric evolution and the shot-variance rotation.",
+  "turns": [
+    {
+      "changed": {
+        "(initial)": {
+          "arousal": 18,
+          "awakeningActive": false,
+          "awakeningStage": "off",
+          "awareness": 0,
+          "engagement": 72,
+          "env": "her place",
+          "herStreak": 0,
+          "historyLength": 1,
+          "lastShotType": "Front Selfie / Bust / eye",
+          "memoryLedger": [],
+          "mode": "DM",
+          "mood": "Warm",
+          "moodIntensity": 1,
+          "outfit": "casual day look",
+          "persona": "Standard",
+          "shotHistory": [
+            "Front Selfie / Bust / eye"
+          ],
+          "socialHold": null,
+          "tease": 0,
+          "thermal": "Normal"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "double_text",
+            "presenceBand": "cold",
+            "presenceVeto": true,
+            "rolled": "double_text",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        },
+        {
+          "detail": {
+            "reason": "missing secondMessage",
+            "suggested": "double_text"
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal (double_text demoted — missing secondMessage)"
+        }
+      ],
+      "input": "hey",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 1,
+          "to": 2
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "what are you up to",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 2,
+          "to": 3
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": true,
+            "picked": "reaction",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "reaction",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → reaction"
+        }
+      ],
+      "input": "send me a pic",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 3,
+          "to": 5
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "memoryLedger": {
+          "from": [],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: you look good"
+            }
+          ]
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "double_text",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "double_text",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        }
+      ],
+      "input": "you look good",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 5,
+          "to": 6
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "what are you wearing",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 6,
+          "to": 7
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Propped / Full / low"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "openedThread": true,
+            "pacing": "instant",
+            "silenceSimMs": 7950624.795025215,
+            "style": "left_on_read"
+          },
+          "kind": "withhold",
+          "summary": "Withhold reply (left_on_read) — 2h 13m sim silence"
+        },
+        {
+          "detail": {
+            "allowStory": true,
+            "difficulty": "medium",
+            "engagement": 72,
+            "heat": 5,
+            "kind": "left_on_read",
+            "picked": "ditch",
+            "weights": {
+              "ditch": 1.23,
+              "follow_up": 4.382,
+              "story": 1.496
+            }
+          },
+          "kind": "social",
+          "summary": "Social beat → ditch (left_on_read)"
+        }
+      ],
+      "input": "come over",
+      "notices": [
+        {
+          "essential": true,
+          "text": "Left on read…",
+          "via": "systemNote"
+        },
+        {
+          "text": "2h 13m passed without a reply.",
+          "via": "caption"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 7,
+          "to": 8
+        },
+        "lastShotType": {
+          "from": "Propped / Full / low",
+          "to": "Front Selfie / Bust / eye"
+        },
+        "shotHistory": {
+          "from": [
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ],
+          "to": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ]
+        },
+        "socialHold": {
+          "from": null,
+          "to": "ditch"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "from": "cold",
+            "to": "warm"
+          },
+          "kind": "presence",
+          "summary": "Presence softened to warm (post-jump / proactive landing)"
+        },
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "went_quiet",
+            "presenceBand": "warm",
+            "presenceVeto": true,
+            "rolled": "slow",
+            "suggested": "went_quiet",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → went_quiet"
+        },
+        {
+          "detail": {
+            "openedThread": true,
+            "pacing": "instant",
+            "silenceSimMs": 775196.8032913283,
+            "style": "went_quiet"
+          },
+          "kind": "withhold",
+          "summary": "Withhold reply (went_quiet) — 13 min sim silence"
+        }
+      ],
+      "input": "i missed you today",
+      "notices": [
+        {
+          "essential": true,
+          "text": "She went quiet…",
+          "via": "systemNote"
+        },
+        {
+          "essential": true,
+          "text": "She’s gone quiet — she’ll text when she’s ready.",
+          "via": "systemNote"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 8,
+          "to": 9
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "POV / Torso / high"
+        },
+        "memoryLedger": {
+          "from": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: you look good"
+            }
+          ],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: talk to me"
+            },
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: you look good"
+            }
+          ]
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "POV / Torso / high",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low",
+            "Front Selfie / Bust / eye",
+            "Propped / Full / low"
+          ]
+        },
+        "socialHold": {
+          "from": "ditch",
+          "to": null
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "from": "cold",
+            "to": "warm"
+          },
+          "kind": "presence",
+          "summary": "Presence softened to warm (post-jump / proactive landing)"
+        },
+        {
+          "detail": {
+            "cooldown": 3,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "normal",
+            "presenceBand": "warm",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "talk to me",
+      "notices": []
+    }
+  ],
+  "pageErrors": []
+}

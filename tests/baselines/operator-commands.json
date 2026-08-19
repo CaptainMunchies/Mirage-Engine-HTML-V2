@@ -1,0 +1,408 @@
+{
+  "scenario": "operator-commands",
+  "why": "Operator authority: persona and mode are client-owned and absolute, metric pins last one turn, directives move the clock and the scene.",
+  "turns": [
+    {
+      "changed": {
+        "(initial)": {
+          "arousal": 18,
+          "awakeningActive": false,
+          "awakeningStage": "off",
+          "awareness": 0,
+          "engagement": 72,
+          "env": "her place",
+          "herStreak": 0,
+          "historyLength": 1,
+          "lastShotType": "Front Selfie / Bust / eye",
+          "memoryLedger": [],
+          "mode": "DM",
+          "mood": "Warm",
+          "moodIntensity": 1,
+          "outfit": "casual day look",
+          "persona": "Standard",
+          "shotHistory": [
+            "Front Selfie / Bust / eye"
+          ],
+          "socialHold": null,
+          "tease": 0,
+          "thermal": "Normal"
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "double_text",
+            "presenceBand": "cold",
+            "presenceVeto": true,
+            "rolled": "double_text",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        },
+        {
+          "detail": {
+            "reason": "missing secondMessage",
+            "suggested": "double_text"
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal (double_text demoted — missing secondMessage)"
+        }
+      ],
+      "input": "hey",
+      "notices": []
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 1,
+          "to": 2
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / eye",
+          "to": "Mirror Selfie / Torso / low"
+        },
+        "persona": {
+          "from": "Standard",
+          "to": "Goon"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ]
+        },
+        "tease": {
+          "from": 0,
+          "to": 1
+        }
+      },
+      "decisions": [],
+      "input": "/persona Goon",
+      "notices": [
+        {
+          "text": "Persona → Goon (locked)",
+          "via": "toast:dev"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "arousal": {
+          "from": 18,
+          "to": 80
+        },
+        "historyLength": {
+          "from": 2,
+          "to": 3
+        },
+        "lastShotType": {
+          "from": "Mirror Selfie / Torso / low",
+          "to": "Front Selfie / Bust / high"
+        },
+        "shotHistory": {
+          "from": [
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 72,
+            "needsReply": false,
+            "picked": "reaction",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "reaction",
+            "suggested": "reaction",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → reaction"
+        }
+      ],
+      "input": "/arousal 80",
+      "notices": [
+        {
+          "text": "Arousal → 80",
+          "via": "toast:dev"
+        }
+      ]
+    },
+    {
+      "changed": {},
+      "decisions": [],
+      "input": "/mode STORY",
+      "notices": [
+        {
+          "text": "Unknown command /mode. Use the control deck, or type / for command suggestions.",
+          "via": "toast:player"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "arousal": {
+          "from": 80,
+          "to": 66
+        },
+        "engagement": {
+          "from": 72,
+          "to": 62
+        },
+        "historyLength": {
+          "from": 3,
+          "to": 5
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / high",
+          "to": "Mirror Selfie / Torso / eye"
+        },
+        "memoryLedger": {
+          "from": [],
+          "to": [
+            {
+              "kind": "fact",
+              "resolved": false,
+              "text": "mock ledger note after: /next scene"
+            }
+          ]
+        },
+        "mood": {
+          "from": "Warm",
+          "to": "Soft"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "allowStory": true,
+            "difficulty": "medium",
+            "engagement": 72,
+            "heat": 5,
+            "kind": "world_skip",
+            "picked": "follow_up",
+            "weights": {
+              "ditch": 0,
+              "follow_up": 5.2584,
+              "story": 2.0944
+            }
+          },
+          "kind": "social",
+          "summary": "Social beat → follow_up (world_skip)"
+        },
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 62,
+            "needsReply": true,
+            "picked": "double_text",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "double_text",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → double_text"
+        }
+      ],
+      "input": "/next scene",
+      "notices": [
+        {
+          "text": "Next beat — evening · 4:00 PM Thursday · 10:30 AM → 4:16 PM",
+          "via": "toast:dev"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "historyLength": {
+          "from": 5,
+          "to": 6
+        },
+        "lastShotType": {
+          "from": "Mirror Selfie / Torso / eye",
+          "to": "Front Selfie / Bust / high"
+        },
+        "shotHistory": {
+          "from": [
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "cooldown": 0,
+            "difficulty": "medium",
+            "engagement": 62,
+            "needsReply": true,
+            "picked": "normal",
+            "presenceBand": "hot",
+            "presenceVeto": true,
+            "rolled": "normal",
+            "suggested": "normal",
+            "typeDeleteOk": true
+          },
+          "kind": "style",
+          "summary": "Delivery style → normal"
+        }
+      ],
+      "input": "/change outfit black slip dress",
+      "notices": [
+        {
+          "text": "Outfit change → black slip dress",
+          "via": "toast:dev"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "arousal": {
+          "from": 66,
+          "to": 52
+        },
+        "engagement": {
+          "from": 62,
+          "to": 52
+        },
+        "herStreak": {
+          "from": 0,
+          "to": 1
+        },
+        "historyLength": {
+          "from": 6,
+          "to": 7
+        },
+        "lastShotType": {
+          "from": "Front Selfie / Bust / high",
+          "to": "Mirror Selfie / Face / eye"
+        },
+        "mood": {
+          "from": "Soft",
+          "to": "Content"
+        },
+        "shotHistory": {
+          "from": [
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low",
+            "Front Selfie / Bust / eye"
+          ],
+          "to": [
+            "Mirror Selfie / Face / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low"
+          ]
+        }
+      },
+      "decisions": [
+        {
+          "detail": {
+            "allowStory": true,
+            "difficulty": "medium",
+            "engagement": 52,
+            "heat": 0,
+            "kind": "time_pass",
+            "picked": "follow_up",
+            "weights": {
+              "ditch": 0.574,
+              "follow_up": 6.510400000000001,
+              "story": 1.0472
+            }
+          },
+          "kind": "social",
+          "summary": "Social beat → follow_up (time_pass)"
+        }
+      ],
+      "input": "/time pass 3 hours",
+      "notices": [
+        {
+          "text": "She's messaging you…",
+          "via": "toast:player"
+        }
+      ]
+    },
+    {
+      "changed": {
+        "herStreak": {
+          "from": 1,
+          "to": 0
+        },
+        "historyLength": {
+          "from": 7,
+          "to": 8
+        },
+        "lastShotType": {
+          "from": "Mirror Selfie / Face / eye",
+          "to": "Front Selfie / Bust / high"
+        },
+        "shotHistory": {
+          "from": [
+            "Mirror Selfie / Face / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / low"
+          ],
+          "to": [
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Face / eye",
+            "Front Selfie / Bust / high",
+            "Mirror Selfie / Torso / eye",
+            "Front Selfie / Bust / high"
+          ]
+        }
+      },
+      "decisions": [],
+      "input": "still up?",
+      "notices": []
+    }
+  ],
+  "pageErrors": []
+}

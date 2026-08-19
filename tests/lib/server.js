@@ -41,20 +41,6 @@ async function startServer({ quiet = true } = {}) {
         return { origin: ORIGIN, borrowed: true, stop: async () => {} };
     }
 
-    // mirage_server.py sets allow_reuse_address = False, so a socket left in
-    // TIME_WAIT by the previous run refuses the bind for a few seconds. Running the
-    // suite twice back to back is normal, so wait it out rather than failing.
-    const net = require('net');
-    const portFree = () => new Promise(resolve => {
-        const probe = net.createServer();
-        probe.once('error', () => resolve(false));
-        probe.once('listening', () => probe.close(() => resolve(true)));
-        probe.listen(PORT, '127.0.0.1');
-    });
-    for (let i = 0; i < 40 && !(await portFree()); i++) {
-        await new Promise(r => setTimeout(r, 500));
-    }
-
     // Keep stderr so a genuine startup failure is reported, not guessed at.
     const stderr = [];
     const child = spawn('python3', ['mirage_server.py'], {

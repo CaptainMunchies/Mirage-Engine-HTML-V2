@@ -575,7 +575,16 @@ class MirageHandler(SimpleHTTPRequestHandler):
 
 class MirageServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = False
+    # SO_REUSEADDR. This was False, which meant a restart was refused for the whole
+    # TIME_WAIT window — up to a minute after the browser had an open connection —
+    # so stopping Mirage and starting it again just failed. bind_server only retries
+    # for 5s, so it gave up well before the port came back.
+    #
+    # It bought nothing: on Linux SO_REUSEADDR does not let two processes listen on
+    # the same port (that needs SO_REUSEPORT), so an already-running Mirage is still
+    # detected and still reported below. All it changes is that sockets left in
+    # TIME_WAIT by the previous run stop blocking the next one.
+    allow_reuse_address = True
 
 
 def bind_server(attempts=10, delay=0.5):
