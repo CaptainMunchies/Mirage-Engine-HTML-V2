@@ -119,6 +119,13 @@ Seven phases. Each ends with a working app. The ordering is not arbitrary — fo
 Everything here is a defect with a known fix and a known location. Finding IDs refer to
 `docs/PRODUCT_REVIEW.md`; §5 tracks every one of them to completion.
 
+> **Status: 1a is done** — shipped on `claude/mirage-v3`, one commit per finding, each with the
+> verification in its message. Every fix was checked by driving the real code in a headless browser
+> rather than by inspection: the timezone resolver against all 23 previously-broken locations, the
+> refusal beats by running turns through the mock until `ghost_type`, `left_on_read` and `went_quiet`
+> each rolled, the SSRF fix against a live server with 12 attack probes, and the backup by exporting a
+> full character, opening a fresh browser profile, and restoring it. **1b has not been started.**
+
 #### 1a — Defects that change behaviour
 
 | ID | Fix | What breaks today |
@@ -535,23 +542,23 @@ why.
 
 | ID | Finding | Lands in |
 |----|---------|----------|
-| B00 | Timezone substring matching | **Phase 1a** |
-| B0 | Immersion beats routed to hidden debug lane | **Phase 1a** |
-| B5b | Pinned metric vanishes during a ghost hold | **Phase 1a** |
-| B1 | Image timeout misreported as "no image" | **Phase 1a** |
-| B2 | Refusal heuristic runs before JSON parse | **Phase 1a** |
-| B3 | Cancel leaks shot-variance state | **Phase 1a** (superseded by Phase 6) |
+| B00 | Timezone substring matching | **Phase 1a — done** |
+| B0 | Immersion beats routed to hidden debug lane | **Phase 1a — done** |
+| B5b | Pinned metric vanishes during a ghost hold | **Phase 1a — done** |
+| B1 | Image timeout misreported as "no image" | **Phase 1a — done** |
+| B2 | Refusal heuristic runs before JSON parse | **Phase 1a — done** |
+| B3 | Cancel leaks shot-variance state | **Phase 1a — done** |
 | B4 | Error copy names models the provider lacks | **Phase 1b** |
-| B5 | Launcher pins Python 3.11 | **Phase 1a** |
+| B5 | Launcher pins Python 3.11 | **Phase 1a — done** |
 | B6 | Unreachable branch in `errors.js` | **Phase 1b** |
-| B7 | Input-token ceiling silently exceeded | **Phase 1a** |
-| B8 | `STOP MIRAGE` kills any process on 8080 | **Phase 1a** |
+| B7 | Input-token ceiling silently exceeded | **Phase 1a — done** |
+| B8 | `STOP MIRAGE` kills any process on 8080 | **Phase 1a — done** |
 | B9 | `//` comments in the JSON example shown to the model | **Phase 3** |
-| S1 | Proxy SSRF + wildcard CORS | **Phase 1a** |
-| S2 | API keys in URL query strings | **Phase 1a** |
-| D1 | No export, import or backup | **Phase 1a** |
+| S1 | Proxy SSRF + wildcard CORS | **Phase 1a — done** |
+| S2 | API keys in URL query strings | **Phase 1a — done** |
+| D1 | No export, import or backup | **Phase 1a — done** |
 | D2 | Three separate IndexedDB databases, no migration path | **Parked** — see §6 |
-| D3 | Async cleanup in a synchronous `try/catch` | **Phase 1a** |
+| D3 | Async cleanup in a synchronous `try/catch` | **Phase 1a — done** |
 | I2 | Stale V1 architecture note in the UI | **Phase 1b** |
 | I6 | Header reads "Google AI" while running on kie | **Phase 1b** (app copy only — README half is out of scope) |
 | I9 | 20-vs-30 photo limit mismatch | **Phase 1b** |
@@ -572,17 +579,17 @@ why.
 | N1 | All three IndexedDB stores cache a rejected open | **Phase 1b** |
 | N2 | No `onblocked` handler on IDB open — activated by the planned migration work | **Phase 1b** |
 | N3 | Destructive deletes behind a native `confirm()`, no undo, no backup yet | **Phase 1b** + Phase 5 |
-| N4 | **Legacy chat migration overwrites instead of merging** | **Phase 1a** |
-| N5 | **Body reference leaks between characters and is saved onto the wrong one** | **Phase 1a** |
+| N4 | **Legacy chat migration overwrites instead of merging** | **Phase 1a — done** |
+| N5 | **Body reference leaks between characters and is saved onto the wrong one** | **Phase 1a — done** |
 | N6 | `openSessionChoice` dereferences before its own null check | **Phase 1b** |
 | N7 | Character save writes localStorage twice — partial-save risk on quota | **Phase 1b** |
 | N8 | Body reference selectable while the setting silently ignores it | **Phase 1b** + Phase 5 |
 | N9 | `protocolBadge` unescaped in `innerHTML` | **Phase 1b** |
 | N10 | Photos identified by filename — duplicates collide | **Phase 1b** |
 | N11 | `restoreChatUi()` unawaited after deleting the active chat | **Phase 1b** |
-| N12 | **Hybrid never wall-waits on model-authored time jumps — computed then discarded** | **Phase 1a** |
+| N12 | **Hybrid never wall-waits on model-authored time jumps — computed then discarded** | **Phase 1a — done** |
 | N13 | Hebrew `הייכן` typo — the formal "where" can never match | **Phase 1b** |
-| N14 | **`lastTimeSkipMs` never cleared on ditch-hold / streak-cap turns — presence stuck warm, stale prompt injects** | **Phase 1a** |
+| N14 | **`lastTimeSkipMs` never cleared on ditch-hold / streak-cap turns — presence stuck warm, stale prompt injects** | **Phase 1a — done** |
 | N15 | Redundant `coldEng \|\| coolEng` | **Phase 1b** |
 | N16 | `delivery.style: 'slow'` inert at warm presence | **Phase 1b** |
 | N17 | **Mock delivery cycle dead outside Realtime — blocks Phase 2's deterministic transcripts** | **Phase 1b** (before Phase 2 needs it) |
