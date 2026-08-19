@@ -1356,8 +1356,12 @@
             }
         }
 
-        // Instant / Hybrid / story-launch path — still allow ignore withhold (no bubble + silence notice)
-        // Hybrid uses this for normal DM texture; narrativeWaitMs may still be > 0 for time jumps.
+        // Instant / Hybrid / story-launch path — still allow ignore withhold (no bubble
+        // + silence notice). Hybrid uses this for normal DM texture, and carries
+        // narrativeWaitMs through so a time jump still wall-waits. This block used to
+        // hardcode narrativeWaitMs: 0 on both exits, which meant the value computed
+        // above was discarded every Hybrid turn and the mode never waited on a jump the
+        // model authored — only on ones the operator commanded, via applyWorldSkip.
         if (turnInstantLike || opts.forceInstant || opts.storyLaunch) {
             const ignoring = isWithholdStyle(style);
             if (!opts.storyLaunch && !opts.mustDeliver && ignoring) {
@@ -1392,6 +1396,8 @@
                     silenceSimMs: silenceMs,
                     followUp: style === 'went_quiet' ? 'ditch' : 'social',
                     presence,
+                    // A withhold turn has no narrative content, so its jump is the
+                    // silence gap above rather than delivery.timeSkipSec.
                     timeSkipMs: 0,
                     timeSkipReason: '',
                     narrativeWaitMs: 0,
@@ -1422,7 +1428,7 @@
                 presence,
                 timeSkipMs,
                 timeSkipReason,
-                narrativeWaitMs: 0,
+                narrativeWaitMs,
                 pacingMode: turnPacing
             };
         }
@@ -1560,9 +1566,12 @@
     async function choreograph(plan, { signal } = {}) {
         const gen = ++deliveryGen;
 
-        // Narrative time gap — wall wait in Hybrid + Realtime (clear waiting UI)
-        // Instant / director landings never fake a "time passing" wall wait.
-        if (plan.narrativeWaitMs > 0 && !plan.instant && !plan.mustDeliver && !plan.storyLaunch) {
+        // Narrative time gap — wall wait in Hybrid + Realtime (clear waiting UI).
+        // Hybrid delivers the *text* instantly but still waits on a time jump, which
+        // is exactly what its Settings line promises, so this must not gate on
+        // plan.instant. planDelivery only sets narrativeWaitMs when the mode waits;
+        // Instant and director landings arrive here with 0.
+        if (plan.narrativeWaitMs > 0 && !plan.mustDeliver && !plan.storyLaunch) {
             const skipMs = Number(plan.timeSkipMs) || 0;
             const span = formatTimeJumpSpan(skipMs, plan.timeSkipReason);
             const reason = plan.timeSkipReason || 'Some time passes…';
@@ -2479,16 +2488,23 @@
     function onTurnSettled() {
         touchLastAttended();
         touchAiActivity();
+
+        // Consume the narrative skip flag — her post-skip turn has landed, so the jump
+        // is spent. This runs *before* the early returns below: it used to sit after
+        // them, so landing a long skip into a ditch hold or a streak cap left the flag
+        // set indefinitely. Downstream that isn't cosmetic — planDelivery reads it as
+        // landingAfterJump and force-softens presence to warm (she could never go cold
+        // again), and the prompt kept injecting OUTFIT STALE / "she SHOULD have left
+        // this room" every turn for a jump that already happened.
+        const skipMs = Number(S()?.session?.lastTimeSkipMs) || 0;
+        if (skipMs >= 20 * 60 * 1000) {
+            S().session.lastTimeSkipMs = 0;
+        }
+
         if (isDitchHold()) return;
         if (sheIsAtStreakCap() || isUnresponsiveCap()) {
             setUnresponsiveCap();
             return;
-        }
-
-        // Consume narrative skip flag — her post-skip DM already landed; no-reply watch handles chase
-        const skipMs = Number(S()?.session?.lastTimeSkipMs) || 0;
-        if (skipMs >= 20 * 60 * 1000) {
-            S().session.lastTimeSkipMs = 0;
         }
 
         // No-reply watch owns the next beat
