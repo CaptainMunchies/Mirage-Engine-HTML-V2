@@ -11,23 +11,19 @@
     const DB_VERSION = 1;
     const STORE = 'anchors';
 
-    let dbPromise = null;
+    const connection = MirageIDB.createConnection({
+        name: DB_NAME,
+        version: DB_VERSION,
+        upgrade(db) {
+            if (!db.objectStoreNames.contains(STORE)) {
+                const store = db.createObjectStore(STORE, { keyPath: 'key' });
+                store.createIndex('characterId', 'characterId', { unique: false });
+            }
+        }
+    });
 
     function openDb() {
-        if (dbPromise) return dbPromise;
-        dbPromise = new Promise((resolve, reject) => {
-            const req = indexedDB.open(DB_NAME, DB_VERSION);
-            req.onerror = () => reject(req.error);
-            req.onupgradeneeded = () => {
-                const db = req.result;
-                if (!db.objectStoreNames.contains(STORE)) {
-                    const store = db.createObjectStore(STORE, { keyPath: 'key' });
-                    store.createIndex('characterId', 'characterId', { unique: false });
-                }
-            };
-            req.onsuccess = () => resolve(req.result);
-        });
-        return dbPromise;
+        return connection.open();
     }
 
     function anchorKey(characterId, kind) {
@@ -220,7 +216,7 @@
     }
 
     function wipeDatabase() {
-        dbPromise = null;
+        connection.reset();
         return new Promise((resolve) => {
             try {
                 const req = indexedDB.deleteDatabase(DB_NAME);

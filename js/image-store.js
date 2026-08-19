@@ -8,22 +8,18 @@
     const DB_VERSION = 1;
     const STORE = 'images';
 
-    let dbPromise = null;
+    const connection = MirageIDB.createConnection({
+        name: DB_NAME,
+        version: DB_VERSION,
+        upgrade(db) {
+            if (!db.objectStoreNames.contains(STORE)) {
+                db.createObjectStore(STORE, { keyPath: 'key' });
+            }
+        }
+    });
 
     function openDb() {
-        if (dbPromise) return dbPromise;
-        dbPromise = new Promise((resolve, reject) => {
-            const req = indexedDB.open(DB_NAME, DB_VERSION);
-            req.onerror = () => reject(req.error);
-            req.onupgradeneeded = () => {
-                const db = req.result;
-                if (!db.objectStoreNames.contains(STORE)) {
-                    db.createObjectStore(STORE, { keyPath: 'key' });
-                }
-            };
-            req.onsuccess = () => resolve(req.result);
-        });
-        return dbPromise;
+        return connection.open();
     }
 
     function dataUrlToBlob(dataUrl) {
@@ -170,7 +166,7 @@
     }
 
     function wipeDatabase() {
-        dbPromise = null;
+        connection.reset();
         return new Promise((resolve) => {
             try {
                 const req = indexedDB.deleteDatabase(DB_NAME);
