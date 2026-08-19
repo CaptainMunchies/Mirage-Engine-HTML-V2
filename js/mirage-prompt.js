@@ -3480,15 +3480,29 @@ FACE RECOVERY MODE (active — overrides variance):
      * Clip history / client-note padding so system+user stay under the input token budget.
      * Never trims USER INPUT or COMMAND CONTEXT.
      */
+    /**
+     * Trim the user/history block to fit "Max thinking prompt per turn".
+     *
+     * The system instruction is never trimmed — it is the contract and the persona,
+     * and silently clipping it corrupts behaviour in ways that look like model
+     * failure. But the old code also floored the trim at 80 chars, so when the system
+     * prompt alone already exceeded the budget the ceiling was quietly blown with no
+     * signal at all: the setting appeared to work and did nothing.
+     *
+     * Now the head can be trimmed to nothing, and when the irreducible part (system +
+     * the command/user tail that must survive) still doesn't fit, the result carries
+     * `overBudget` so the caller can say so rather than pretending the cap held.
+     */
     function fitInputBudget(systemInstruction, userText, budgetTokens) {
         const budget = Number(budgetTokens);
-        if (!Number.isFinite(budget) || budget <= 0) {
-            return { systemInstruction, userText };
-        }
         const sys = String(systemInstruction || '');
-        let user = String(userText || '');
-        if (estimateTokens(sys) + estimateTokens(user) <= budget) {
-            return { systemInstruction: sys, userText: user };
+        const user = String(userText || '');
+        if (!Number.isFinite(budget) || budget <= 0) {
+            return { systemInstruction: sys, userText: user, overBudget: false };
+        }
+        const sysTok = estimateTokens(sys);
+        if (sysTok + estimateTokens(user) <= budget) {
+            return { systemInstruction: sys, userText: user, overBudget: false };
         }
 
         const cmdIdx = user.search(/COMMAND CONTEXT:/i);
@@ -3497,15 +3511,23 @@ FACE RECOVERY MODE (active — overrides variance):
         const head = keepFrom >= 0 ? user.slice(0, keepFrom) : user;
         const tail = keepFrom >= 0 ? user.slice(keepFrom) : '';
 
-        const sysTok = estimateTokens(sys);
         const tailTok = estimateTokens(tail);
-        const roomChars = Math.max(80, (budget - sysTok - tailTok) * 4);
+        // Room may legitimately be zero — drop the whole history block before
+        // pretending 80 characters of it are free.
+        const roomChars = Math.max(0, (budget - sysTok - tailTok) * 4);
         const clippedHead = head.length > roomChars
-            ? `…${head.slice(Math.max(0, head.length - roomChars))}`
+            ? (roomChars > 0 ? `…${head.slice(Math.max(0, head.length - roomChars))}` : '')
             : head;
+        const fittedUser = `${clippedHead}${tail}`;
+        const finalTok = sysTok + estimateTokens(fittedUser);
+
         return {
             systemInstruction: sys,
-            userText: `${clippedHead}${tail}`
+            userText: fittedUser,
+            overBudget: finalTok > budget,
+            budgetTokens: budget,
+            estimatedTokens: finalTok,
+            systemTokens: sysTok
         };
     }
 

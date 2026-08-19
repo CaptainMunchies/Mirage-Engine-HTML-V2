@@ -169,12 +169,17 @@
         const store = readStore();
         store.profiles = store.profiles.filter(p => p.id !== id);
         writeStore(store);
-        try {
-            MirageMediaLibrary?.removeCharacter?.(id);
-        } catch { /* ignore */ }
-        try {
-            MirageAnchorStore?.removeCharacter?.(id);
-        } catch { /* ignore */ }
+        // Both of these are async. A synchronous try/catch cannot catch a rejected
+        // promise, so a failed IndexedDB delete used to surface as an unhandled
+        // rejection instead of being swallowed as intended. .catch() is what the rest
+        // of the codebase already does (characters-ui.js, chat-store.js).
+        const swallow = (label) => (err) => {
+            console.warn(`[Mirage] ${label} cleanup failed for ${id}`, err);
+        };
+        Promise.resolve(MirageMediaLibrary?.removeCharacter?.(id))
+            .catch(swallow('Media library'));
+        Promise.resolve(MirageAnchorStore?.removeCharacter?.(id))
+            .catch(swallow('Anchor store'));
     }
 
     function save({ id, label, snapshot }) {

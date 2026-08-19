@@ -89,7 +89,15 @@
                 operatorOverrides: cloneJson(sess.operatorOverrides || {}),
                 _lastUserInput: sess._lastUserInput,
                 memoryLedger: cloneJson(sess.memoryLedger || []),
-                turnsSinceCallback: Number(sess.turnsSinceCallback) || 0
+                turnsSinceCallback: Number(sess.turnsSinceCallback) || 0,
+                // recordShotType / recordGoonCombo fire in applyShotVarianceLock, which
+                // runs *before* the image is generated. Without these four, cancelling
+                // mid-generation leaves a phantom entry in the avoid-list — and with
+                // only four shot types, that measurably skews the next photo's framing.
+                lastShotType: sess.lastShotType ?? null,
+                shotHistory: cloneJson(sess.shotHistory || []),
+                lastGoonCombo: sess.lastGoonCombo ?? null,
+                goonLookHistory: cloneJson(sess.goonLookHistory || [])
             }
         };
     }
@@ -162,6 +170,12 @@
         sess._lastUserInput = snap._lastUserInput;
         sess.memoryLedger = cloneJson(snap.memoryLedger) || [];
         sess.turnsSinceCallback = Number(snap.turnsSinceCallback) || 0;
+        // Shot variance: the lock is recorded before generation, so a cancelled turn
+        // must give the avoid-list back or the next photo dodges a shot never taken.
+        sess.lastShotType = snap.lastShotType ?? null;
+        sess.shotHistory = cloneJson(snap.shotHistory) || [];
+        sess.lastGoonCombo = snap.lastGoonCombo ?? null;
+        sess.goonLookHistory = cloneJson(snap.goonLookHistory) || [];
         sess._lastChatStampMs = Number(cp.lastChatStampMs) || 0;
         sess.lastAiMessageAt = cp.lastAiMessageAt ?? sess.lastAiMessageAt;
         sess.lastUserMessageAt = cp.lastUserMessageAt ?? sess.lastUserMessageAt;
@@ -4128,6 +4142,7 @@
                 );
                 systemInstruction = fitted.systemInstruction;
                 if (userParts[0]) userParts[0].text = fitted.userText;
+                reportInputBudget(fitted);
             }
 
             const thinkCall = {
@@ -4177,6 +4192,7 @@
                     const fitted = MiragePrompt.fitInputBudget(sys, userText, inputPack?.tokens);
                     sys = fitted.systemInstruction;
                     userText = fitted.userText;
+                    reportInputBudget(fitted);
                 }
                 thinkCall.systemInstruction = sys;
                 thinkCall.userParts = [{ text: userText }];
@@ -5056,6 +5072,26 @@
             persist: opts.persist !== false,
             at: opts.at,
             touchClock: opts.touchClock !== false
+        });
+    }
+
+    /**
+     * The system instruction is never trimmed to fit the input budget, so when it
+     * alone exceeds "Max thinking prompt per turn" the cap simply cannot hold. Say so
+     * in the decision log rather than letting the setting look like it worked.
+     */
+    function reportInputBudget(fitted) {
+        if (!fitted?.overBudget) return;
+        appendDebugDecision({
+            kind: 'notice',
+            summary: `Input budget exceeded — system prompt alone is ~${fitted.systemTokens} tokens `
+                + `against a ${fitted.budgetTokens} cap`,
+            detail: {
+                budgetTokens: fitted.budgetTokens,
+                estimatedTokens: fitted.estimatedTokens,
+                systemTokens: fitted.systemTokens,
+                note: 'History was trimmed to nothing; the system instruction is never trimmed.'
+            }
         });
     }
 
