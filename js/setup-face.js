@@ -360,6 +360,43 @@
         renderBodyGrid();
     }
 
+    /**
+     * Say out loud whether the chosen body reference will actually be used.
+     *
+     * Face Lock happily lets you pick one while `effectiveReferenceMode()` discards it
+     * at generation time — because Settings is on "Face only", or because the active
+     * image model can't take multiple references. The hint text stated the requirement
+     * but nothing enforced or reflected it, so the choice looked like it had taken.
+     */
+    function refreshBodyRefStatus() {
+        const status = document.getElementById('bodyRefStatus');
+        if (!status) return;
+
+        if (!S().masterBodyFile) {
+            status.textContent = '';
+            status.hidden = true;
+            return;
+        }
+        status.hidden = false;
+
+        const effective = S().effectiveReferenceMode?.() || 'face';
+        if (effective === 'face+body') {
+            status.dataset.tone = 'ok';
+            status.textContent = 'In use — the renderer receives this alongside her face.';
+            return;
+        }
+
+        status.dataset.tone = 'warn';
+        if (S().referenceMode !== 'face+body') {
+            status.textContent = 'Ignored right now — Settings → Reference mode is "Face only". '
+                + 'Switch it to "Face + body" for this to reach the renderer.';
+            return;
+        }
+        const model = MirageModels?.getImageModel?.(S().imageModel, S().apiProvider);
+        status.textContent = `Ignored right now — ${model?.label || 'the selected image model'} `
+            + 'only accepts one reference image. Pick a multi-reference image model in Settings.';
+    }
+
     function renderBodyReference() {
         const preview = document.getElementById('bodyRefPreview');
         const img = document.getElementById('bodyRefImg');
@@ -375,6 +412,7 @@
             img.removeAttribute('src');
             name.textContent = '';
         }
+        refreshBodyRefStatus();
     }
 
     async function handleBodyUpload(file) {

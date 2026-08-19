@@ -3052,6 +3052,8 @@ select:disabled {
 #backupStatus[data-tone="ok"] { color: var(--ok, #5ac68a); }
 #backupStatus[data-tone="warn"] { color: var(--warn, #d8a63c); }
 #backupStatus[data-tone="error"] { color: var(--error, #e06c75); }
+#bodyRefStatus[data-tone="ok"] { color: var(--ok, #5ac68a); }
+#bodyRefStatus[data-tone="warn"] { color: var(--warn, #d8a63c); }
 .settings-card .field { margin-bottom: 0.7rem; }
 .settings-card .field-last { margin-bottom: 0; }
 .settings-card-head {

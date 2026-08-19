@@ -351,7 +351,16 @@
 
     function deleteCharacter(id, label) {
         const name = label || 'this character';
-        if (!confirm(`Delete saved character “${name}”?`)) return;
+        // Say what actually goes. This destroys her chats, her face lock, her anchors
+        // and her whole photo library — a five-step wizard plus a photo ingest — and
+        // there is no undo. Now that export exists, point at it.
+        const chats = MirageChatStore.listChats(id).length;
+        if (!confirm(
+            `Delete “${name}” permanently?\n\n`
+            + `This removes her ${chats} saved chat${chats === 1 ? '' : 's'}, her face lock, `
+            + 'her body reference and every photo in her library. It cannot be undone.\n\n'
+            + 'Cancel and use Export on this character first if you might want her back.'
+        )) return;
 
         MirageProfileStore.remove(id);
         MirageChatStore.removeCharacter(id);
