@@ -178,10 +178,16 @@ Where a model quotes a price range, the **upper** bound is used. Starting a test
 the assumption that it gets the cheap end is how a cap gets exceeded.
 
 Rough shape, so the ordering is not mysterious: a thinking turn is ~6k in / 500 out,
-which is a fraction of one credit. A single image is 4–27. **The cap barely
-constrains the thinking tests and almost entirely governs whether an image runs.**
-With the default Google models the full live suite including one image costs about
-10 credits.
+which is a fraction of one credit. The image test is **pinned to Nano Banana 2 Lite**
+— ~4 credits on kie, ~7 on Google — so the whole live suite including an image lands
+around 6–10 credits, well inside the default cap.
+
+The image model is pinned rather than inherited from your settings on purpose. The
+test checks that the *pipeline* holds end to end, and that answer is the same
+whichever model produced the bytes. Inheriting Nano Banana Pro would cost ~27
+credits for an identical assertion, and at the default cap would simply be refused.
+The trade is that the test says nothing about how the model you actually play with
+renders — which was never automatable anyway.
 
 ### Images: what this can and cannot tell you
 
@@ -200,6 +206,10 @@ Most of its assertions are on **what we send**, not what comes back — the requ
 deterministic and free to inspect, while the image is stochastic and a test that
 asserts on it would be flaky. More images buy almost no extra information, which is
 why the budget never scales this past one.
+
+(Nano Banana 2 Lite reports `maxCharacterRefs: 0` on Google, but `referenceFiles`
+floors it at `Math.max(1, …)`, so one FACE reference always survives and the
+"face reference attached" assertion holds on both providers.)
 
 ## Node-only
 

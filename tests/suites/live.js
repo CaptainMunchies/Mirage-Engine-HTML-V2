@@ -13,9 +13,9 @@
  * until your budget is spent, so a small budget still buys the answers that count.
  *
  * Cost shape, so the ordering is not mysterious: a thinking turn is ~6k in / 500
- * out, which on a cheap model is a fraction of one credit. A single image is 4–27.
- * The budget therefore barely constrains the thinking tests and almost entirely
- * governs whether an image runs at all.
+ * out, which on a cheap model is a fraction of one credit. The image test is pinned
+ * to Nano Banana 2 Lite — ~4 credits on kie, ~7 on Google — so the whole live suite
+ * fits comfortably inside the default 25-credit cap.
  */
 (function () {
     'use strict';
@@ -185,14 +185,16 @@
             group: 'image pipeline',
             live: true, needsImages: true, priority: 1, turns: 1, images: 1,
             async run(ctx, t) {
-                // Deliberately ONE image, and deliberately not a judgement of what
-                // came back. A test cannot tell you whether it looks like her — that
-                // is yours to judge. What it *can* tell you is that every link in a
-                // long, intricate chain still holds: the face reference is attached
-                // to the request, the provider accepts it, the job poller finishes,
-                // the SSRF-guarded proxy fetches the result, the bytes decode, and
-                // the store keeps them. That chain is the least-tested code in the
-                // app and none of it is exercised by mock mode.
+                // Deliberately ONE image, on the cheapest model in the registry, and
+                // deliberately not a judgement of what came back. A test cannot tell
+                // you whether it looks like her — that is yours to judge. What it
+                // *can* tell you is that every link in a long, intricate chain still
+                // holds: the face reference is attached to the request, the provider
+                // accepts it, the job poller finishes, the SSRF-guarded proxy fetches
+                // the result, the bytes decode, and the store keeps them. That chain
+                // is the least-tested code in the app and none of it is exercised by
+                // mock mode — and the answer is identical whichever model drew it,
+                // which is exactly why paying Pro prices for it would be waste.
                 await ctx.resetLive();
                 await ctx.seedCharacter();
 

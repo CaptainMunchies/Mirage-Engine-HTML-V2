@@ -364,6 +364,22 @@
         return snapshot();
     }
 
+    /**
+     * The image model live tests generate with: Nano Banana 2 Lite, the cheapest in
+     * the registry on either provider — ~4 credits on kie, ~7 on Google.
+     *
+     * Pinned rather than inherited from your settings on purpose. The image test
+     * checks that the *pipeline* holds end to end, and that answer is the same
+     * whichever model produced the bytes; letting it inherit Nano Banana Pro would
+     * cost ~27 credits for the identical assertion and, at the default cap, would
+     * simply be refused. It does mean the test says nothing about how the model you
+     * actually play with renders — that judgement was never automatable anyway.
+     */
+    const LIVE_IMAGE_MODEL = {
+        google: 'gemini-3.1-flash-lite-image',
+        kie: 'nano-banana-2-lite'
+    };
+
     /** Config the sandbox needs to talk to a real provider. */
     function liveConfigPatch(live) {
         return {
@@ -376,7 +392,7 @@
             apiKey: live.provider === 'kie' ? '' : live.apiKey,
             kieApiKey: live.provider === 'kie' ? live.apiKey : '',
             ...(live.thinkingModel ? { thinkingModel: live.thinkingModel } : {}),
-            ...(live.imageModel ? { imageModel: live.imageModel } : {})
+            imageModel: live.imageModel || LIVE_IMAGE_MODEL[live.provider] || LIVE_IMAGE_MODEL.google
         };
     }
 
@@ -490,8 +506,8 @@
 
     global.MirageRunner = {
         run, cancel, snapshot, onChange, bootSandbox,
-        textReport, jsonReport,
+        textReport, jsonReport, liveConfigPatch,
         get frame() { return frame; },
-        BASE_CONFIG
+        BASE_CONFIG, LIVE_IMAGE_MODEL
     };
 })(window);

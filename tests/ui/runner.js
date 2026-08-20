@@ -218,13 +218,14 @@
             els.liveEstimate.textContent = `${tests.length} live test(s) · run once to price them`;
             return;
         }
-        const price = MirageBudget.priceModels(win, {
-            provider: live.provider, thinkingModel: null, imageModel: null
-        });
+        // Priced against exactly the config the run will use — including the pinned
+        // image model — so the preview cannot promise a number the run then misses.
+        const price = MirageBudget.priceModels(win, MirageRunner.liveConfigPatch(live));
         const plan = MirageBudget.plan(tests, price, live.budget);
         const R = MirageBudget.round;
         els.liveEstimate.textContent =
             `${plan.admitted.length} of ${tests.length} tests fit · ~${R(plan.committed)} of ${live.budget} cr`
+            + (live.useImages ? ` · image ~${R(price.perImage)} cr (${price.imageLabel})` : '')
             + (plan.skipped.length ? ` · ${plan.skipped.length} skipped` : '');
     }
 
