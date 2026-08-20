@@ -7,7 +7,9 @@
  *   node run.js record --update    Layer 2 — re-record the baseline (deliberate act)
  *   node run.js failure            Layer 3 — failure and edge cases
  *   node run.js nodeonly           the handful that need a driver outside the page
- *   node run.js all                everything
+ *   node run.js all                everything above
+ *   node run.js live               calls a real provider — needs MIRAGE_API_KEY,
+ *                                  and is deliberately NOT part of `all`
  *
  * Layers 1 and 3 are the *same* tests the in-app runner fires: they live in
  * `tests/suites/` as plain browser code, and both runners execute them through
@@ -24,15 +26,19 @@ const LAYERS = {
     smoke: () => ({ run: (o) => require('./layer-browser').smoke(o) }),
     record: () => require('./layer2-record'),
     failure: () => ({ run: (o) => require('./layer-browser').failure(o) }),
-    nodeonly: () => require('./layer-nodeonly')
+    nodeonly: () => require('./layer-nodeonly'),
+    // Never part of `all`: it spends real money and needs an explicit key.
+    live: () => ({ run: (o) => require('./layer-browser').live(o) })
 };
+
+const IN_ALL = ['smoke', 'record', 'failure', 'nodeonly'];
 
 async function main() {
     const [, , rawLayer = 'all', ...flags] = process.argv;
     const layer = String(rawLayer).toLowerCase();
     const update = flags.includes('--update');
 
-    const names = layer === 'all' ? Object.keys(LAYERS) : [layer];
+    const names = layer === 'all' ? IN_ALL : [layer];
     for (const n of names) {
         if (!LAYERS[n]) {
             console.error(`Unknown layer "${n}". Use: ${Object.keys(LAYERS).join(', ')}, or all.`);
@@ -72,6 +78,12 @@ async function main() {
 }
 
 main().catch(err => {
+    // A missing key for the live layer is a usage mistake, not a crash — printing a
+    // stack trace for it buries the one line that says what to do.
+    if (err && err.code === 'MIRAGE_USAGE') {
+        console.error(`\n${C.yellow}${err.message}${C.off}`);
+        process.exit(2);
+    }
     console.error(`\n${C.red}Runner crashed:${C.off}`, err);
     process.exit(2);
 });

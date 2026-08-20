@@ -167,12 +167,16 @@
 
     // -------------------------------------------------------------- execution
 
-    function selectTests({ suiteIds = null, only = null } = {}) {
+    function selectTests({ suiteIds = null, only = null, live = null } = {}) {
         const picked = [];
         for (const s of MirageTests.allSuites()) {
             if (suiteIds && !suiteIds.includes(s.id)) continue;
             for (const test of s.tests) {
                 if (test.nodeOnly && !global.__MIRAGE_NODE__) continue;
+                // A live test never runs by accident: it needs a key, and an image
+                // test needs the checkbox on top of that.
+                if (test.live && !live) continue;
+                if (test.needsImages && !live?.useImages) continue;
                 if (only && !only.includes(`${s.id}::${test.name}`)) continue;
                 picked.push({ suite: s, test });
             }
@@ -196,6 +200,7 @@
             done: state.results.length,
             current: state.current,
             results: state.results.slice(),
+            budget: state.budget ? { ...state.budget } : null,
             counts,
             total: state.results.length,
             startedAt: state.startedAt,
@@ -215,25 +220,89 @@
     async function run(opts = {}) {
         if (state.running) throw new Error('a run is already in progress');
 
-        const picked = selectTests(opts);
+        const live = opts.live || null;
+        let picked = selectTests({ ...opts, live });
+
         cancelled = false;
         state.running = true;
         state.startedAt = Date.now();
         state.finishedAt = null;
         state.results = [];
         state.current = null;
+        state.budget = null;
         state.planned = picked.length;
         emit();
 
         let ctx = null;
+        let money = null;
         try {
-            const win = await bootSandbox({ wipe: true, config: opts.config || null });
+            // Live tests need the key in the sandbox's config before the app boots,
+            // since that is where api.js reads it from. The sandbox is a separate
+            // storage origin, so this never touches the config of the app you use —
+            // and it is wiped again in the finally below regardless of outcome.
+            const bootConfig = { ...(opts.config || {}) };
+            if (live) {
+                Object.assign(bootConfig, liveConfigPatch(live));
+            }
+
+            const win = await bootSandbox({ wipe: true, config: bootConfig });
+
+            // Price the plan against the models actually configured, then drop what
+            // the budget cannot cover — before a single credit is spent.
+            let plan = null;
+            if (live) {
+                const price = MirageBudget.priceModels(win, liveConfigPatch(live));
+                plan = MirageBudget.plan(
+                    picked.filter(p => p.test.live).map(p => ({ suite: p.suite, test: p.test })),
+                    price,
+                    live.budget
+                );
+                const admitted = new Set(plan.admitted.map(a => `${a.suite.id}::${a.test.name}`));
+                picked = picked.filter(p => !p.test.live || admitted.has(`${p.suite.id}::${p.test.name}`));
+                state.planned = picked.length;
+
+                state.budget = {
+                    budget: live.budget, price,
+                    committed: plan.committed,
+                    skipped: plan.skipped.map(s => ({ name: s.test.name, reason: s.reason })),
+                    spent: 0, turns: 0, images: 0
+                };
+
+                money = MirageBudget.meter(win, price, live.budget, () => { cancelled = true; });
+                emit();
+            }
+
             ctx = MirageTests.makeContext({
                 win,
-                reload: (o) => bootSandbox(o),
+                reload: (o) => bootSandbox({
+                    ...o,
+                    config: o?.config || (live ? liveConfigPatch(live) : null)
+                }),
                 errors: () => sandboxErrors.slice(),
                 config: () => ({ ...currentConfig })
             });
+
+            // Live tests need the real key and a wipe that keeps it.
+            ctx.liveConfig = () => (live ? liveConfigPatch(live) : null);
+            ctx.resetLive = async () => {
+                if (!live) return ctx.reset();
+                const patch = liveConfigPatch(live);
+                const next = await bootSandbox({ wipe: true, config: patch });
+                ctx._rebind(next);
+                if (money) {
+                    // Carry the totals forward: a reboot hands us a new MirageAPI to
+                    // wrap, and starting the meter from zero would quietly void the cap.
+                    const carried = money.state;
+                    money.release();
+                    money = MirageBudget.meter(
+                        next, MirageBudget.priceModels(next, patch), live.budget,
+                        () => { cancelled = true; }, carried
+                    );
+                }
+                captureRawPayloads(next);
+                return next;
+            };
+            if (live) captureRawPayloads(win);
 
             for (const { suite, test } of picked) {
                 if (cancelled) break;
@@ -262,6 +331,12 @@
                     sandboxErrors: sandboxErrors.slice()
                 };
                 result.status = classify(result);
+                if (money) {
+                    result.creditsSoFar = money.spent();
+                    state.budget.spent = money.spent();
+                    state.budget.turns = money.state.turns;
+                    state.budget.images = money.state.images;
+                }
                 state.results.push(result);
                 state.current = null;
                 emit();
@@ -274,6 +349,11 @@
                 durationMs: 0, sandboxErrors: sandboxErrors.slice()
             });
         } finally {
+            money?.release();
+            // The key never outlives the run. It was only ever in the sandbox
+            // origin, but leaving a key sitting in localStorage because a test threw
+            // is not a defensible default.
+            if (live) forgetLiveKey();
             state.running = false;
             state.current = null;
             state.finishedAt = Date.now();
@@ -282,6 +362,51 @@
             emit();
         }
         return snapshot();
+    }
+
+    /** Config the sandbox needs to talk to a real provider. */
+    function liveConfigPatch(live) {
+        return {
+            ...BASE_CONFIG,
+            mockThinking: false,
+            mockImages: !live.useImages,
+            developerMode: true,
+            pacingMode: 'instant',
+            provider: live.provider,
+            apiKey: live.provider === 'kie' ? '' : live.apiKey,
+            kieApiKey: live.provider === 'kie' ? live.apiKey : '',
+            ...(live.thinkingModel ? { thinkingModel: live.thinkingModel } : {}),
+            ...(live.imageModel ? { imageModel: live.imageModel } : {})
+        };
+    }
+
+    /** Scrub the key out of the sandbox origin once the run is over. */
+    function forgetLiveKey() {
+        try {
+            const raw = localStorage.getItem('mirage_v2_config');
+            if (!raw) return;
+            const cfg = JSON.parse(raw);
+            delete cfg.apiKey;
+            delete cfg.kieApiKey;
+            localStorage.setItem('mirage_v2_config', JSON.stringify(cfg));
+            currentConfig = { ...currentConfig, apiKey: '', kieApiKey: '' };
+        } catch (_) { /* best effort — the origin is a sandbox either way */ }
+    }
+
+    /**
+     * Keep the last raw thinking payload so a contract test can inspect exactly what
+     * the model said, before the engine repaired or clamped anything.
+     */
+    function captureRawPayloads(win) {
+        const API = win.MirageAPI;
+        if (!API || API.__rawCaptured) return;
+        API.__rawCaptured = true;
+        const real = API.thinkingGenerate;
+        API.thinkingGenerate = async function (...args) {
+            const out = await real.apply(this, args);
+            try { win.__liveRaw = typeof out === 'string' ? out : JSON.stringify(out); } catch (_) {}
+            return out;
+        };
     }
 
     function cancel() { cancelled = true; }
@@ -300,6 +425,20 @@
         lines.push('');
         lines.push(`RESULT: ${snap.counts.pass} passed, ${snap.counts.fail} failed, `
             + `${snap.counts.red} known-red, ${snap.counts.fixed} newly fixed  (${snap.total} total)`);
+
+        if (snap.budget) {
+            const R = MirageBudget.round;
+            const b = snap.budget;
+            lines.push('');
+            lines.push(`SPEND:  ~${R(b.spent)} of ${b.budget} credits`
+                + `  (${b.turns} thinking turns, ${b.images} images)`);
+            lines.push(`        priced at ~${R(b.price.perTurn)} cr/turn (${b.price.thinkingLabel}), `
+                + `~${R(b.price.perImage)} cr/image (${b.price.imageLabel})`);
+            if (b.skipped.length) {
+                lines.push('        not run, budget too small:');
+                b.skipped.forEach(s => lines.push(`          - ${s.name} — ${s.reason}`));
+            }
+        }
         lines.push('');
 
         const bySuite = new Map();

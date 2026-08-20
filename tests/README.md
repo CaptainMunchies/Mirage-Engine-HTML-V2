@@ -17,7 +17,8 @@ That opens a separate window with a Run all button, live pass/fail, expandable
 failure detail, and Copy report / Download .txt / Download .json. Nothing to
 install — it is just the app's own server serving another page.
 
-Covers Layers 1 and 3. Layer 2 is terminal-only (see below).
+Covers Layers 1 and 3, plus the live suite if you paste an API key. Layer 2 is
+terminal-only (see below).
 
 **Why it cannot hurt your library.** `localhost:8080` and `127.0.0.1:8080` are the
 same server but *different storage origins* — a key written at one reads back as
@@ -50,7 +51,8 @@ node run.js record           # Layer 2 — compare against the committed baselin
 node run.js record --update  # Layer 2 — re-record (deliberate act; read the diff)
 node run.js failure          # Layer 3 — failure and edge cases
 node run.js nodeonly         # the few that need a driver outside the page
-node run.js all              # everything, ~4 minutes
+node run.js all              # everything above, ~4 minutes
+MIRAGE_API_KEY=... node run.js live   # calls a real provider; not part of `all`
 ```
 
 The runner starts `mirage_server.py` itself and stops it afterwards. If Mirage is
@@ -63,7 +65,7 @@ Layer 3 test does not fail the run.
 What a healthy run ends with:
 
 ```
-TOTAL: 47 passed, 3 known-red  (50 total)
+TOTAL: 48 passed, 3 known-red  (51 total)
 ```
 
 ### One definition, two runners
@@ -144,6 +146,61 @@ Currently red:
 | the model cannot change mode | `applyTracking` ignores `tracking.mode` as client-owned, then `simulation.js:4374` honours it anyway (N19) | Phase 3 |
 | a promise survives ledger overflow | the ledger evicts by recency only, so trivia pushes out an open promise (the callback picker ranks by kind; eviction does not) | Phase 6 |
 
+## Live — the questions only a real provider can answer
+
+Everything above runs on mock mode, which always returns well-formed JSON. That is
+exactly why it cannot tell you the thing that actually breaks in production: **the
+real model's output stops matching the turn contract.** Prompt drift, a model
+version bump, a provider changing its response shape — invisible offline, fatal in
+play.
+
+Open the **Live API tests** panel in the runner window, paste a key, set a cap, run.
+Or from a terminal:
+
+```
+MIRAGE_API_KEY=your-key node run.js live
+MIRAGE_API_KEY=... MIRAGE_PROVIDER=kie MIRAGE_BUDGET=40 MIRAGE_LIVE_IMAGES=1 node run.js live
+```
+
+Live tests are **never part of `all`** and never run without a key.
+
+### The budget
+
+Default cap **25 credits**, hard maximum **50**, enforced in `ui/budget.js` rather
+than by the input's `max` attribute — an attribute is a suggestion, and this is a
+limit on real money. Tests are priced against the models you actually have
+configured, sorted by priority, and admitted only while the whole cost still fits.
+A test that does not fit is skipped whole, never truncated: half a test tells you
+nothing and still costs money. Spend is metered on *dispatch* — a failed call still
+billed — and a run stops the moment real spend passes the cap.
+
+Where a model quotes a price range, the **upper** bound is used. Starting a test on
+the assumption that it gets the cheap end is how a cap gets exceeded.
+
+Rough shape, so the ordering is not mysterious: a thinking turn is ~6k in / 500 out,
+which is a fraction of one credit. A single image is 4–27. **The cap barely
+constrains the thinking tests and almost entirely governs whether an image runs.**
+With the default Google models the full live suite including one image costs about
+10 credits.
+
+### Images: what this can and cannot tell you
+
+The image test is deliberately **one image**, and deliberately not a judgement of
+what came back. No automated test can tell you whether it looks like her, whether
+the outfit is right, or whether the crop works — that is yours to judge, and it is
+the part that actually matters for this product.
+
+What it *can* tell you is that every link in a long, intricate chain still holds:
+the face reference is attached to the request, the prompt carries the render
+doctrine, the provider accepts it, the job poller finishes, the SSRF-guarded proxy
+fetches the result, the bytes decode, and the feed renders them. That chain is the
+least-tested code in the app and mock mode exercises none of it.
+
+Most of its assertions are on **what we send**, not what comes back — the request is
+deterministic and free to inspect, while the image is stochastic and a test that
+asserts on it would be flaky. More images buy almost no extra information, which is
+why the budget never scales this past one.
+
 ## Node-only
 
 Two tests need a driver outside the page and cannot be written as shared suites:
@@ -159,8 +216,10 @@ that — anything expressible as a shared suite belongs in `suites/`.
 suites/harness.js     the shared harness: assertions + the sandbox context
 suites/smoke.js       Layer 1, plain browser code
 suites/failure.js     Layer 3, plain browser code
+suites/live.js        Live provider tests, priced and priority-ordered
 ui/runner.html        the runner window — and what the CLI drives too
 ui/engine.js          sandbox lifecycle + execution + report building
+ui/budget.js          credit pricing, the hard cap, and the spend meter
 ui/runner.js          the window's buttons and rendering
 layer-browser.js      relays a runner-page run to the terminal (no assertions)
 layer2-record.js      Layer 2 — terminal-only

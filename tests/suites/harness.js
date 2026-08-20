@@ -26,7 +26,15 @@
      * @param {string} id
      * @param {string} title
      * @param {{name: string, group?: string, expectedRed?: string,
-     *          nodeOnly?: boolean, run: (ctx, t) => Promise<void>}[]} tests
+     *          nodeOnly?: boolean, live?: boolean, needsImages?: boolean,
+     *          priority?: 1|2|3, turns?: number, images?: number,
+     *          run: (ctx, t) => Promise<void>}[]} tests
+     *
+     * `live` marks a test that spends real API credits. Those carry a `priority`
+     * (1 = run first) and a rough shape of what they cost — `turns` thinking calls
+     * and `images` image calls — which the runner prices against the models you
+     * actually have configured, then admits in priority order until the budget is
+     * gone. `needsImages` additionally requires the image checkbox.
      */
     function suite(id, title, tests) {
         suites.push({ id, title, tests });

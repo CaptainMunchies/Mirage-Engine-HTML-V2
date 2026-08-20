@@ -21,7 +21,9 @@
         results: $('results'), empty: $('emptyState'),
         originLabel: $('originLabel'), sandboxOrigin: $('sandboxOrigin'),
         sandboxPane: $('sandboxPane'), sandboxHost: $('sandboxHost'), toggleSandbox: $('btnToggleSandbox'),
-        warning: $('originWarning'), warningText: $('originWarningText')
+        warning: $('originWarning'), warningText: $('originWarningText'),
+        liveProvider: $('liveProvider'), liveKey: $('liveKey'), liveBudget: $('liveBudget'),
+        liveImages: $('liveImages'), liveEstimate: $('liveEstimate'), runLive: $('btnRunLive')
     };
 
     els.originLabel.textContent = location.origin;
@@ -63,9 +65,14 @@
         els.cRed.textContent = snap.counts.red;
         els.cFixed.textContent = snap.counts.fixed;
         els.pillFixed.hidden = snap.counts.fixed === 0;
-        els.cMeta.textContent = snap.durationMs != null
+        const R = MirageBudget.round;
+        const spend = snap.budget
+            ? ` · ${R(snap.budget.spent)} / ${snap.budget.budget} cr spent`
+                + ` (${snap.budget.turns} turns, ${snap.budget.images} images)`
+            : '';
+        els.cMeta.textContent = (snap.durationMs != null
             ? `${snap.total} tests in ${(snap.durationMs / 1000).toFixed(1)}s`
-            : (snap.running ? '' : `${snap.total} tests`);
+            : (snap.running ? '' : `${snap.total} tests`)) + spend;
 
         els.progressWrap.hidden = !snap.running;
         els.cancel.hidden = !snap.running;
@@ -170,6 +177,81 @@
     els.cancel.addEventListener('click', () => MirageRunner.cancel());
     els.onlyProblems.addEventListener('change', () => render(lastSnapshot || MirageRunner.snapshot()));
 
+    // ------------------------------------------------------------------- live
+
+    /**
+     * Read the live settings. The cap is clamped here *and* in the budget module —
+     * a `max` attribute is a suggestion, and this one is a limit on real money.
+     */
+    function readLive() {
+        const key = (els.liveKey.value || '').trim();
+        if (!key) return null;
+        const budget = MirageBudget.clampBudget(els.liveBudget.value);
+        if (String(budget) !== String(els.liveBudget.value)) els.liveBudget.value = budget;
+        return {
+            provider: els.liveProvider.value === 'kie' ? 'kie' : 'google',
+            apiKey: key,
+            budget,
+            useImages: !!els.liveImages.checked
+        };
+    }
+
+    /** What the current settings would admit, priced before anything is spent. */
+    function refreshEstimate() {
+        const live = readLive();
+        els.runLive.disabled = !live || blocked || (lastSnapshot?.running ?? false);
+        if (!live) {
+            els.liveEstimate.textContent = 'Paste a key to enable.';
+            return;
+        }
+
+        const tests = MirageTests.allSuites()
+            .filter(s => s.id === 'live')
+            .flatMap(s => s.tests
+                .filter(x => x.live && (!x.needsImages || live.useImages))
+                .map(test => ({ suite: s, test })));
+
+        // Priced against the sandbox's model registry — which is the app's own, so
+        // the number here is the number the run will use.
+        const win = MirageRunner.frame?.contentWindow;
+        if (!win?.MirageModels) {
+            els.liveEstimate.textContent = `${tests.length} live test(s) · run once to price them`;
+            return;
+        }
+        const price = MirageBudget.priceModels(win, {
+            provider: live.provider, thinkingModel: null, imageModel: null
+        });
+        const plan = MirageBudget.plan(tests, price, live.budget);
+        const R = MirageBudget.round;
+        els.liveEstimate.textContent =
+            `${plan.admitted.length} of ${tests.length} tests fit · ~${R(plan.committed)} of ${live.budget} cr`
+            + (plan.skipped.length ? ` · ${plan.skipped.length} skipped` : '');
+    }
+
+    [els.liveKey, els.liveBudget, els.liveProvider].forEach(e =>
+        e.addEventListener('input', refreshEstimate));
+    els.liveImages.addEventListener('change', refreshEstimate);
+    els.liveBudget.addEventListener('blur', refreshEstimate);
+
+    els.runLive.addEventListener('click', async () => {
+        const live = readLive();
+        if (!live) return;
+        const R = MirageBudget.round;
+        const what = live.useImages
+            ? `up to ${live.budget} credits, including one real image`
+            : `up to ${live.budget} credits`;
+        if (!confirm(
+            `This calls your ${live.provider === 'kie' ? 'kie.ai' : 'Google'} account and spends ${what}.\n\n`
+            + 'Tests run highest-value first and stop when the cap is reached. Continue?'
+        )) return;
+        void R;
+        await start({ suiteIds: ['live'], live });
+        // The field is cleared as soon as the run is over; the engine also scrubs it
+        // from the sandbox's stored config.
+        els.liveKey.value = '';
+        refreshEstimate();
+    });
+
     // ----------------------------------------------------------------- export
 
     function flash(btn, text) {
@@ -224,4 +306,14 @@
     });
 
     render(MirageRunner.snapshot());
+    refreshEstimate();
+
+    // Boot the sandbox straight away, so the pane is not an empty box and — more
+    // usefully — so live tests can be priced against the real model registry before
+    // you commit any money to a run.
+    if (!blocked) {
+        MirageRunner.bootSandbox({ wipe: true })
+            .then(refreshEstimate)
+            .catch(() => { /* the first real run will report it properly */ });
+    }
 })();

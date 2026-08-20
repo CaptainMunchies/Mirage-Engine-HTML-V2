@@ -27,6 +27,53 @@
     <span id="originWarningText"></span>
 </div>
 
+<details class="live" id="livePanel">
+    <summary>Live API tests — <b>spends real credits</b></summary>
+    <div class="live-body">
+        <p class="live-note">
+            Everything else runs on mock mode, which always returns perfect JSON. These
+            call your real provider, which is the only way to find out that the model's
+            output stopped matching the turn contract. Tests run <b>highest value first</b>
+            and stop when the budget is gone.
+        </p>
+
+        <div class="live-row">
+            <label class="live-field">
+                <span>Provider</span>
+                <select id="liveProvider">
+                    <option value="google">Google AI</option>
+                    <option value="kie">kie.ai</option>
+                </select>
+            </label>
+            <label class="live-field live-field-grow">
+                <span>API key <em>(never saved — wiped when the run ends)</em></span>
+                <input type="password" id="liveKey" autocomplete="off" spellcheck="false"
+                       placeholder="Paste a key to enable live tests">
+            </label>
+            <label class="live-field">
+                <span>Credit cap</span>
+                <input type="number" id="liveBudget" value="25" min="1" max="50" step="1">
+            </label>
+        </div>
+
+        <div class="live-row live-row-tight">
+            <label class="toggle">
+                <input type="checkbox" id="liveImages">
+                Also test the image pipeline <em>(one image, 4–27 credits)</em>
+            </label>
+            <span class="live-estimate" id="liveEstimate"></span>
+        </div>
+
+        <p class="live-warn">
+            Hard limit is 50 credits per run, enforced in code — the box will not accept more.
+            A thinking turn is a fraction of a credit; a single image can be 27. The cap is
+            really a limit on images.
+        </p>
+
+        <button id="btnRunLive" class="btn btn-danger" disabled>Run live tests</button>
+    </div>
+</details>
+
 <section class="summary" id="summary" hidden>
     <div class="counts">
         <span class="pill pill-pass"><b id="cPass">0</b> passed</span>
@@ -79,6 +126,8 @@
 <script src="../suites/harness.js"></script>
 <script src="../suites/smoke.js"></script>
 <script src="../suites/failure.js"></script>
+<script src="../suites/live.js"></script>
+<script src="budget.js"></script>
 <script src="engine.js"></script>
 <script src="runner.js"></script>
 </body>

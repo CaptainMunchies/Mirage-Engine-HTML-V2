@@ -49,9 +49,28 @@ function printResult(r) {
 }
 
 /**
- * @param {{origin: string, suiteIds?: string[]}} opts
+ * Live settings from the environment, so a terminal run can spend credits too —
+ * but only when asked explicitly. No key, no live tests.
+ *
+ *   MIRAGE_API_KEY=...  MIRAGE_PROVIDER=google|kie
+ *   MIRAGE_BUDGET=25    MIRAGE_LIVE_IMAGES=1
  */
-async function run({ origin, suiteIds = null }) {
+function liveFromEnv() {
+    const apiKey = (process.env.MIRAGE_API_KEY || '').trim();
+    if (!apiKey) return null;
+    return {
+        apiKey,
+        provider: process.env.MIRAGE_PROVIDER === 'kie' ? 'kie' : 'google',
+        // Clamped again in the page; this is only so the terminal shows the truth.
+        budget: Math.min(50, Math.max(1, Math.floor(Number(process.env.MIRAGE_BUDGET) || 25))),
+        useImages: /^(1|true|yes)$/i.test(process.env.MIRAGE_LIVE_IMAGES || '')
+    };
+}
+
+/**
+ * @param {{origin: string, suiteIds?: string[], live?: object}} opts
+ */
+async function run({ origin, suiteIds = null, live = null }) {
     const browser = await launchBrowser();
     let snap;
 
@@ -75,9 +94,12 @@ async function run({ origin, suiteIds = null }) {
 
         // Kick the run off without awaiting it, so results can be printed as they
         // land rather than in one dump at the end.
-        await page.evaluate((ids) => {
-            window.__runPromise = MirageRunner.run(ids ? { suiteIds: ids } : {});
-        }, suiteIds);
+        await page.evaluate(([ids, liveOpts]) => {
+            window.__runPromise = MirageRunner.run({
+                ...(ids ? { suiteIds: ids } : {}),
+                ...(liveOpts ? { live: liveOpts } : {})
+            });
+        }, [suiteIds, live]);
 
         let printed = 0;
         let suiteShown = null;
@@ -123,6 +145,25 @@ async function run({ origin, suiteIds = null }) {
 
 module.exports = {
     run,
+    liveFromEnv,
     smoke: (o) => run({ ...o, suiteIds: ['smoke'] }),
-    failure: (o) => run({ ...o, suiteIds: ['failure'] })
+    failure: (o) => run({ ...o, suiteIds: ['failure'] }),
+    live: (o) => {
+        const live = liveFromEnv();
+        if (!live) {
+            const err = new Error(
+                'Live tests need a key, and none was given.\n'
+                + '  MIRAGE_API_KEY=your-key node run.js live\n'
+                + '  optional: MIRAGE_PROVIDER=kie  MIRAGE_BUDGET=25  MIRAGE_LIVE_IMAGES=1\n'
+                + 'Or use the runner window — Settings → Developer → Open test runner — which has a field for it.'
+            );
+            err.code = 'MIRAGE_USAGE';
+            throw err;
+        }
+        console.log(
+            `${C.yellow}Live run: ${live.provider}, cap ${live.budget} credits`
+            + `${live.useImages ? ', images ON' : ''}${C.off}`
+        );
+        return run({ ...o, suiteIds: ['live'], live });
+    }
 };
