@@ -149,6 +149,17 @@ if not errorlevel 1 (
     echo ============================================================
     echo.
 )
+REM The copy doing this work was staged from the repo *before* the merge, so an
+REM improvement to the updater only takes effect from the next run. The files are
+REM already here - this is not a "pull again", just a note about which version of
+REM the script you are watching.
+findstr /C:"UPDATE MIRAGE.bat" "%TEMP%\mirage_changed.txt" >nul
+if not errorlevel 1 (
+    echo Note: this updater changed in this update. The new files are already in
+    echo place - nothing more to pull - but the improved script only takes effect
+    echo the next time you run it.
+    echo.
+)
 del "%TEMP%\mirage_changed.txt" >nul 2>nul
 
 echo In your browser, press Ctrl+Shift+R on the Mirage tab so it loads the new
