@@ -1,0 +1,10 @@
+# Windows launcher scripts must keep CRLF endings.
+#
+# cmd.exe seeks by byte offset through a running .bat file, and LF-only line
+# endings can leave it mis-positioned around labels and goto - which is exactly
+# the machinery UPDATE MIRAGE.bat relies on. Git normalising these to LF on
+# checkout would break them on the one platform they exist for.
+*.bat text eol=crlf
+
+# Everything else: leave as-is rather than guess.
+* -text

@@ -9,7 +9,32 @@ REM never silently throw away something you edited by hand. Your characters,
 REM chats and photos are in the browser, not in this folder, so updating the code
 REM never touches them.
 
-cd /d "%~dp0"
+REM ---------------------------------------------------------------------------
+REM Run from a copy in TEMP, not from the repo.
+REM
+REM cmd.exe does not load a .bat into memory. It reads one line, runs it, then
+REM seeks back to a byte offset for the next one. This script's whole job is to
+REM pull changes - which can include changes to this script. Replacing the file
+REM underneath a running cmd.exe leaves that offset pointing into different text,
+REM and it will happily execute whatever now sits there.
+REM
+REM So: stage a copy in TEMP, hand it the repo path, and let it do the work. Git
+REM is then free to rewrite the repo copy, and the next run picks up the new
+REM version because it re-stages from the repo each time.
+REM ---------------------------------------------------------------------------
+if "%~1"=="" (
+    copy /y "%~f0" "%TEMP%\mirage-update-runner.bat" >nul 2>nul
+    if not errorlevel 1 (
+        call "%TEMP%\mirage-update-runner.bat" "%~dp0"
+        exit /b
+    )
+    echo Note: could not stage the updater in %TEMP%, so it is running in place.
+    echo If this update changes the updater itself, run it once more afterwards.
+    echo.
+)
+
+if "%~1"=="" (set "REPO=%~dp0") else (set "REPO=%~1")
+cd /d "%REPO%"
 
 where git >nul 2>nul
 if errorlevel 1 (
