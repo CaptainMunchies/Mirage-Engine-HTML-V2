@@ -1615,6 +1615,18 @@ select:disabled {
     color: var(--muted);
     padding: 0.2rem 0.4rem;
 }
+/* The Default preset: labelled rather than actioned, since it has neither an
+   Edit nor a Delete. */
+.user-profile-locked-note {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    opacity: 0.75;
+    padding: 0.2rem 0.4rem;
+    cursor: default;
+}
 .user-profile-form .field:last-of-type {
     margin-bottom: 0.35rem;
 }

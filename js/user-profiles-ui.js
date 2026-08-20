@@ -126,26 +126,36 @@
                 actions.appendChild(badge);
             }
 
-            const editBtn = document.createElement('button');
-            editBtn.type = 'button';
-            editBtn.className = 'btn btn-ghost btn-sm';
-            editBtn.textContent = 'Edit';
-            editBtn.addEventListener('click', () => {
-                editingId = entry.id;
-                fillForm(entry);
-                const hint = el('userProfFormHint');
-                if (hint) {
-                    hint.textContent = entry.seed || entry.protected
-                        ? `Editing “${entry.label}” — age, gender, and all fields can be changed. This preset cannot be deleted.`
-                        : `Editing “${entry.label}”.`;
-                }
-                const saveBtn = el('btnUserProfSave');
-                if (saveBtn) saveBtn.textContent = 'Update profile';
-                el('userProfDisplayName')?.focus();
-            });
-            actions.appendChild(editBtn);
+            // The Default preset is a fixed fallback, not a profile you shape —
+            // it has no Edit and no Delete. Make your own and it becomes the one
+            // you edit; Default stays put at the bottom as the thing chats fall
+            // back to.
+            const locked = !!MirageUserProfiles.isProtected?.(entry);
 
-            if (!MirageUserProfiles.isProtected?.(entry)) {
+            if (locked) {
+                const note = document.createElement('span');
+                note.className = 'user-profile-locked-note';
+                note.textContent = 'Preset';
+                note.title = 'The Default preset cannot be edited or deleted. Add your own profile to change how she sees you.';
+                actions.appendChild(note);
+            } else {
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'btn btn-ghost btn-sm';
+                editBtn.textContent = 'Edit';
+                editBtn.addEventListener('click', () => {
+                    editingId = entry.id;
+                    fillForm(entry);
+                    const hint = el('userProfFormHint');
+                    if (hint) hint.textContent = `Editing “${entry.label}”.`;
+                    const saveBtn = el('btnUserProfSave');
+                    if (saveBtn) saveBtn.textContent = 'Update profile';
+                    el('userProfDisplayName')?.focus();
+                });
+                actions.appendChild(editBtn);
+            }
+
+            if (!locked) {
                 const delBtn = document.createElement('button');
                 delBtn.type = 'button';
                 delBtn.className = 'btn btn-ghost btn-sm';
@@ -176,6 +186,25 @@
 
     function saveForm() {
         const data = readForm();
+
+        // Belt and braces behind the missing Edit button: nothing reaches the store
+        // that would rewrite the Default preset.
+        if (editingId && MirageUserProfiles.isProtected?.(editingId)) {
+            MirageUI.toast(
+                'The Default preset cannot be edited. Save this as a new profile instead.',
+                'error'
+            );
+            editingId = null;
+            return;
+        }
+
+        // A new profile must not be named "Default" either — that name is what
+        // identifies the preset on installs predating the reserved id.
+        if (!editingId && String(data.label || '').trim().toLowerCase() === 'default') {
+            MirageUI.toast('“Default” is reserved for the built-in preset. Pick another name.', 'error');
+            return;
+        }
+
         try {
             const entry = MirageUserProfiles.save({
                 id: editingId,
@@ -205,17 +234,15 @@
             else clearForm();
             return;
         }
-        const seed = MirageUserProfiles.list().find(p => p.seed || p.id === MirageUserProfiles.SEED_ID)
-            || MirageUserProfiles.getActive();
-        if (seed) {
-            editingId = seed.id;
-            fillForm(seed);
-            const hint = el('userProfFormHint');
-            if (hint) {
-                hint.textContent = `Editing “${seed.label}” — change name, age, gender, or anything else, then Update.`;
-            }
-            const saveBtn = el('btnUserProfSave');
-            if (saveBtn) saveBtn.textContent = 'Update profile';
+        // Nothing being edited: open a blank form rather than pre-loading Default.
+        // Default is no longer editable, so filling the form with it would offer an
+        // Update that has to be refused.
+        clearForm();
+        const hint = el('userProfFormHint');
+        if (hint) {
+            hint.textContent = MirageUserProfiles.list().length > 1
+                ? 'New profile — save to add it to the library.'
+                : 'New profile — tell her who you are. Default stays as the fallback.';
         }
     }
 

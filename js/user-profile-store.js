@@ -96,6 +96,23 @@
         return { version: VERSION, activeId: store.activeId, profiles: store.profiles };
     }
 
+    /** Is this record the Default preset, under whatever id it was created with? */
+    function isSeedLike(raw) {
+        if (!raw) return false;
+        if (raw.seed || raw.id === SEED_ID) return true;
+        return String(raw.label || '').trim().toLowerCase() === 'default';
+    }
+
+    function uniqueLabel(label, taken) {
+        const base = String(label || 'Imported profile').trim() || 'Imported profile';
+        if (!taken.has(base.toLowerCase())) return base;
+        for (let n = 2; n < 500; n++) {
+            const candidate = `${base} (${n})`;
+            if (!taken.has(candidate.toLowerCase())) return candidate;
+        }
+        return `${base} (${Date.now()})`;
+    }
+
     /**
      * Merge restored operator profiles in. Existing profiles win on an id collision —
      * a restore adds what is missing, it never rewrites who you currently are. The
@@ -103,22 +120,43 @@
      */
     function importAll(data) {
         const incoming = Array.isArray(data?.profiles) ? data.profiles : [];
-        if (!incoming.length) return { added: 0 };
+        if (!incoming.length) return { added: 0, skipped: 0 };
         const store = readStore();
         const taken = new Set(store.profiles.map(p => p.id));
+        const labels = new Set(store.profiles.map(p => String(p.label || '').trim().toLowerCase()));
         let added = 0;
+        let skipped = 0;
+
         incoming.forEach(raw => {
             const profile = hydrateProfile(raw);
-            if (!profile || taken.has(profile.id)) return;
+            if (!profile) return;
+
+            // The Default preset is a singleton every install already has, so an
+            // imported one is never wanted. Matching on id alone was not enough:
+            // a backup from an older install carries its Default under the id
+            // makeId('Default') produced, which collides with nothing here. That
+            // landed a second "Default" in the library — and because protection
+            // was inferred from the label, the copy was protected too and could
+            // never be deleted again.
+            if (isSeedLike(profile)) { skipped += 1; return; }
+            if (taken.has(profile.id)) { skipped += 1; return; }
+
+            // A genuine profile that happens to share a name is renamed rather
+            // than dropped — same rule characters follow, so a restore never
+            // silently loses one.
+            profile.label = uniqueLabel(profile.label, labels);
+
             taken.add(profile.id);
+            labels.add(profile.label.toLowerCase());
             store.profiles.push(profile);
             added += 1;
         });
+
         if (!store.activeId && data?.activeId && taken.has(data.activeId)) {
             store.activeId = data.activeId;
         }
         if (added) writeStore(store);
-        return { added };
+        return { added, skipped };
     }
 
     function makeId(label) {
@@ -141,13 +179,20 @@
         return out;
     }
 
+    /**
+     * Your own profiles first, most recently touched at the top; the Default preset
+     * pinned to the bottom. It is the fallback, not the headline — it should not sit
+     * above the profile you actually play as.
+     */
     function list() {
-        return readStore().profiles
+        const store = readStore();
+        const canonicalId = findSeed(store)?.id || null;
+        return store.profiles
             .slice()
             .sort((a, b) => {
-                const aSeed = a.seed || a.id === SEED_ID || String(a.label || '').toLowerCase() === 'default';
-                const bSeed = b.seed || b.id === SEED_ID || String(b.label || '').toLowerCase() === 'default';
-                if (aSeed !== bSeed) return aSeed ? -1 : 1;
+                const aSeed = a.id === canonicalId;
+                const bSeed = b.id === canonicalId;
+                if (aSeed !== bSeed) return aSeed ? 1 : -1;
                 return (b.updatedAt || b.savedAt || '').localeCompare(a.updatedAt || a.savedAt || '');
             });
     }
@@ -179,11 +224,21 @@
         return getActive();
     }
 
+    /**
+     * Exactly one profile is the Default preset, and only it is undeletable.
+     *
+     * This used to answer yes for anything *labelled* "Default", which meant a
+     * second one — importable from an older backup, see importAll — was equally
+     * protected and could never be removed. Anchoring on the canonical record
+     * instead means a duplicate that already made it into a library can be
+     * deleted by hand.
+     */
     function isProtected(entryOrId) {
         const entry = typeof entryOrId === 'string' ? get(entryOrId) : entryOrId;
         if (!entry) return false;
-        if (entry.protected) return true;
-        return String(entry.label || '').trim().toLowerCase() === 'default';
+        if (entry.id === SEED_ID) return true;
+        const canonical = findSeed(readStore());
+        return !!canonical && canonical.id === entry.id;
     }
 
     function save({ id, label, fields }) {
@@ -282,12 +337,16 @@
         };
     }
 
+    /**
+     * The one true Default, picked in a fixed order so the answer never depends on
+     * array position: the reserved id first, then the seed flag, then the name.
+     */
     function findSeed(store) {
-        return (store.profiles || []).find(p =>
-            p.id === SEED_ID
-            || p.seed
-            || String(p.label || '').trim().toLowerCase() === 'default'
-        ) || null;
+        const profiles = store.profiles || [];
+        return profiles.find(p => p.id === SEED_ID)
+            || profiles.find(p => p.seed)
+            || profiles.find(p => String(p.label || '').trim().toLowerCase() === 'default')
+            || null;
     }
 
     function ensureSeed() {
