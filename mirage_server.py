@@ -152,6 +152,28 @@ class MirageHandler(SimpleHTTPRequestHandler):
         return guessed or super().guess_type(path)
 
     def end_headers(self):
+        # Never let the browser reuse app code without checking with us first.
+        #
+        # Static files went out with only Last-Modified and no Cache-Control, so
+        # Chrome applied heuristic freshness: a file untouched for a fortnight is
+        # treated as fresh for a day or more, with no request made at all. The
+        # `?v=` query on every script tag was the intended defence, but it is a
+        # hand-maintained constant that had not moved since the project was
+        # imported — so every edit since shipped under a cache key the browser
+        # already had an answer for.
+        #
+        # The result is the worst kind of failure: index.html has no version query,
+        # so it revalidates and the new markup appears, while the JS behind it is
+        # months old. Buttons render and do nothing, and modules that were changed
+        # together load as a mismatched set. Nothing errors — it just quietly is
+        # not the app you edited.
+        #
+        # `no-cache` does not mean "do not store": the browser keeps the file and
+        # revalidates it, so an unchanged file still answers 304 off local disk.
+        # There is no CDN and no bandwidth to save here, and a stale module costs
+        # far more than a conditional request on localhost.
+        if not self.path.startswith('/api/'):
+            self.send_header('Cache-Control', 'no-cache')
         super().end_headers()
 
     def _request_origin(self):

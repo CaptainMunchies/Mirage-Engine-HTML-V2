@@ -130,7 +130,16 @@
         }
 
         async function runBackupAll() {
-            if (!window.MirageBackup) return;
+            // A silent return here is how a stale cached app.js presents: the card
+            // renders, the button does nothing, and nothing says why. Say why.
+            if (!window.MirageBackup) {
+                setBackupStatus(
+                    'Backup code did not load. Reload the page with Ctrl+Shift+R (Cmd+Shift+R on a Mac) '
+                    + 'to clear a stale cached copy.',
+                    'error'
+                );
+                return;
+            }
             const count = MirageProfileStore?.list?.().length || 0;
             if (!count) {
                 setBackupStatus('Nothing to back up yet — save a character first.', 'warn');
@@ -160,7 +169,15 @@
         }
 
         async function runRestore(file) {
-            if (!file || !window.MirageBackup) return;
+            if (!file) return;
+            if (!window.MirageBackup) {
+                setBackupStatus(
+                    'Backup code did not load. Reload the page with Ctrl+Shift+R (Cmd+Shift+R on a Mac) '
+                    + 'to clear a stale cached copy.',
+                    'error'
+                );
+                return;
+            }
             restoreBtn.disabled = true;
             restoreBtn.textContent = 'Restoring…';
             setBackupStatus(`Reading ${file.name}…`);

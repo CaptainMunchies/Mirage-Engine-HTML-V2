@@ -77,6 +77,33 @@
         },
 
         {
+            name: 'app code is never served from cache without revalidating',
+            group: 'boot',
+            async run(ctx, t) {
+                // Static files once went out with only Last-Modified, so Chrome
+                // applied heuristic freshness and reused months-old JS without
+                // asking. index.html has no version query and revalidates, so the
+                // new markup appeared over stale modules: buttons that render and
+                // do nothing. The `?v=` constant was meant to prevent that and had
+                // not moved since the project was imported.
+                const W = ctx.win;
+                for (const path of ['/index.html', '/js/app.js', '/js/backup.js', '/css/app.css']) {
+                    const res = await W.fetch(path, { method: 'GET' });
+                    if (!res.ok) continue;   // css path differs across layouts
+                    const cc = res.headers.get('Cache-Control') || '';
+                    t.match(cc, /no-cache|no-store|max-age=0/,
+                        `${path} may be reused from cache without revalidating (Cache-Control: "${cc}")`);
+                }
+
+                // And the API keeps exactly one directive — the static rule must
+                // not stack a second Cache-Control onto it.
+                const api = await W.fetch('/api/proxy/session');
+                t.equal((api.headers.get('Cache-Control') || '').split(',').length, 1,
+                    'the session route got more than one Cache-Control directive');
+            }
+        },
+
+        {
             name: 'a character saves and appears in the library',
             group: 'character',
             async run(ctx, t) {
