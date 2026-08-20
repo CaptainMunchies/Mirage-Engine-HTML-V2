@@ -164,16 +164,33 @@
             state[kind] += 1;
         };
 
-        API.thinkingGenerate = function (...args) {
+        /**
+         * Bill only what actually leaves the browser.
+         *
+         * MirageAPI.thinkingGenerate and imageGenerate both short-circuit to the
+         * mock *inside* the function (api.js:581, api.js:650) when mock mode is on.
+         * Wrapping the outer function therefore counts calls the provider never
+         * saw. Observed: a run reported 6 images and ~45 credits when every one of
+         * them was served by the mock and the real cost was about 4 credits — and
+         * the phantom spend tripped the cap, skipping three tests there was budget
+         * for. Over-reporting is the safe direction for money and the wrong
+         * direction for everything else.
+         */
+        const mockedImages = () => !!win.MirageMockAPI?.isActiveImages?.();
+        const mockedThinking = () => !!win.MirageMockAPI?.isActiveThinking?.();
+
+        API.thinkingGenerate = function (opts, ...rest) {
+            if (mockedThinking() && !opts?.forceReal) return realThinking.call(this, opts, ...rest);
             // Charged on dispatch, not on success: a call that fails still billed.
             guard(price.perTurn, 'thinking turn');
             charge(price.perTurn, 'turns');
-            return realThinking.apply(this, args);
+            return realThinking.call(this, opts, ...rest);
         };
-        API.imageGenerate = function (...args) {
+        API.imageGenerate = function (opts, ...rest) {
+            if (mockedImages() && !opts?.forceReal) return realImage.call(this, opts, ...rest);
             guard(price.perImage, 'image');
             charge(price.perImage, 'images');
-            return realImage.apply(this, args);
+            return realImage.call(this, opts, ...rest);
         };
 
         return {

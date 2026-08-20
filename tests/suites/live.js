@@ -181,7 +181,11 @@
                 await liveTurn(ctx, 'tell me what you would do if I were there right now');
                 seen.push(ctx.visible());
 
-                t.equal(seen[1].historyLength, 2, 'both turns did not commit');
+                // Two turns, but not necessarily two entries. `double_text` and a
+                // proactive follow-up both add a message of their own, and that is
+                // the engine working, not a fault — so this asserts the floor.
+                t.ok(seen[1].historyLength >= 2,
+                    `only ${seen[1].historyLength} entries after two turns — a turn did not commit`);
 
                 const moved = ['arousal', 'tease', 'awareness', 'engagement', 'mood']
                     .filter(k => seen[0][k] !== seen[1][k]);
