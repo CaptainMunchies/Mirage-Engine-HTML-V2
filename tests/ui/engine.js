@@ -221,6 +221,13 @@
         if (state.running) throw new Error('a run is already in progress');
 
         const live = opts.live || null;
+
+        // Defence in depth behind the UI's own check: a live run without a key
+        // cannot do anything except produce a confusing report.
+        if (live && !String(live.apiKey || '').trim()) {
+            throw new Error('Live tests need an API key. Paste one into the Live API tests panel.');
+        }
+
         let picked = selectTests({ ...opts, live });
 
         cancelled = false;
@@ -284,6 +291,7 @@
 
             // Live tests need the real key and a wipe that keeps it.
             ctx.liveConfig = () => (live ? liveConfigPatch(live) : null);
+            ctx.liveKey = () => (live ? effectiveKey(liveConfigPatch(live)) : '');
             ctx.resetLive = async () => {
                 if (!live) return ctx.reset();
                 const patch = liveConfigPatch(live);
@@ -312,10 +320,31 @@
                 const failures = [];
                 const t = MirageTests.makeAssertions(failures);
                 const startedAt = Date.now();
+                const callsBefore = money
+                    ? { turns: money.state.turns, images: money.state.images }
+                    : null;
                 try {
                     await test.run(ctx, t);
                 } catch (err) {
                     failures.push(`threw: ${err && err.message ? err.message : String(err)}`);
+                }
+
+                // A live test that made no live call proved nothing, and several of
+                // them will pass anyway — asserting on seeded state or on fixtures
+                // the test itself wrote. That turns a dead key into a mixed
+                // pass/fail report that reads like partial success. If a test
+                // declared it would spend, it has to have spent.
+                if (callsBefore && test.live) {
+                    const madeTurns = money.state.turns - callsBefore.turns;
+                    const madeImages = money.state.images - callsBefore.images;
+                    if ((test.turns || 0) > 0 && madeTurns === 0) {
+                        failures.push('no thinking call reached the provider — this test asserted on '
+                            + 'local state only, so a pass would have meant nothing');
+                    }
+                    if ((test.images || 0) > 0 && madeImages === 0) {
+                        failures.push('no image call reached the provider — this test asserted on '
+                            + 'local state only, so a pass would have meant nothing');
+                    }
                 }
 
                 const result = {
@@ -331,6 +360,14 @@
                     sandboxErrors: sandboxErrors.slice()
                 };
                 result.status = classify(result);
+
+                // If the provider will not talk to us, every later test is a
+                // variation on the same failure. Stop and say so once.
+                if (test.haltsRunOnFailure && result.status === 'fail') {
+                    cancelled = true;
+                    result.failures.push('Stopping the live run here — nothing after this can '
+                        + 'succeed until the provider accepts the key.');
+                }
                 if (money) {
                     result.creditsSoFar = money.spent();
                     state.budget.spent = money.spent();
@@ -380,20 +417,33 @@
         kie: 'nano-banana-2-lite'
     };
 
-    /** Config the sandbox needs to talk to a real provider. */
+    /**
+     * Config the sandbox needs to talk to a real provider.
+     *
+     * The key is `apiProvider`, not `provider` — state.js only honours the former
+     * (`loadConfig`, state.js:341). Writing `provider` set nothing, so the sandbox
+     * stayed on its default and looked for a key that had been blanked, producing
+     * "Missing X-Mirage-Api-Key header" from a run that had a perfectly good key.
+     */
     function liveConfigPatch(live) {
+        const kie = live.provider === 'kie';
         return {
             ...BASE_CONFIG,
             mockThinking: false,
             mockImages: !live.useImages,
             developerMode: true,
             pacingMode: 'instant',
-            provider: live.provider,
-            apiKey: live.provider === 'kie' ? '' : live.apiKey,
-            kieApiKey: live.provider === 'kie' ? live.apiKey : '',
+            apiProvider: kie ? 'kie' : 'google',
+            apiKey: kie ? '' : live.apiKey,
+            kieApiKey: kie ? live.apiKey : '',
             ...(live.thinkingModel ? { thinkingModel: live.thinkingModel } : {}),
             imageModel: live.imageModel || LIVE_IMAGE_MODEL[live.provider] || LIVE_IMAGE_MODEL.google
         };
+    }
+
+    /** The key that matters for this provider, whichever field it lives in. */
+    function effectiveKey(cfg) {
+        return cfg?.apiProvider === 'kie' ? cfg.kieApiKey : cfg?.apiKey;
     }
 
     /** Scrub the key out of the sandbox origin once the run is over. */
@@ -441,6 +491,13 @@
         lines.push('');
         lines.push(`RESULT: ${snap.counts.pass} passed, ${snap.counts.fail} failed, `
             + `${snap.counts.red} known-red, ${snap.counts.fixed} newly fixed  (${snap.total} total)`);
+
+        // "1 total" out of 8 planned looks like a small suite rather than an
+        // aborted one. Say which it was.
+        if (snap.planned > snap.total) {
+            lines.push(`        STOPPED EARLY — ${snap.planned - snap.total} of ${snap.planned} `
+                + 'tests did not run.');
+        }
 
         if (snap.budget) {
             const R = MirageBudget.round;

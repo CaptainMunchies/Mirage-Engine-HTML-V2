@@ -52,8 +52,13 @@
             </label>
             <label class="live-field live-field-grow">
                 <span>API key <em>(never saved — wiped when the run ends)</em></span>
-                <input type="password" id="liveKey" autocomplete="off" spellcheck="false"
-                       placeholder="Paste a key to enable live tests">
+                <!-- new-password, not off: Firefox ignores autocomplete="off" on
+                     password fields and will happily autofill a saved credential,
+                     which then reads as "a key was supplied" when none was. The
+                     field is also cleared explicitly on load. -->
+                <input type="password" id="liveKey" autocomplete="new-password" spellcheck="false"
+                       name="mirage-live-key-no-store"
+                       placeholder="Paste a key — required, nothing runs without it">
             </label>
             <label class="live-field">
                 <span>Credit cap</span>

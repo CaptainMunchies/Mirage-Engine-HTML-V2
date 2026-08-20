@@ -70,9 +70,12 @@
             ? ` · ${R(snap.budget.spent)} / ${snap.budget.budget} cr spent`
                 + ` (${snap.budget.turns} turns, ${snap.budget.images} images)`
             : '';
+        const stoppedEarly = !snap.running && snap.planned > snap.total
+            ? ` · stopped early, ${snap.planned - snap.total} not run`
+            : '';
         els.cMeta.textContent = (snap.durationMs != null
             ? `${snap.total} tests in ${(snap.durationMs / 1000).toFixed(1)}s`
-            : (snap.running ? '' : `${snap.total} tests`)) + spend;
+            : (snap.running ? '' : `${snap.total} tests`)) + stoppedEarly + spend;
 
         els.progressWrap.hidden = !snap.running;
         els.cancel.hidden = !snap.running;
@@ -199,9 +202,11 @@
     /** What the current settings would admit, priced before anything is spent. */
     function refreshEstimate() {
         const live = readLive();
-        els.runLive.disabled = !live || blocked || (lastSnapshot?.running ?? false);
+        // Left enabled without a key on purpose: a greyed-out button explains
+        // nothing. Clicking it says what is missing and puts the cursor there.
+        els.runLive.disabled = blocked || (lastSnapshot?.running ?? false);
         if (!live) {
-            els.liveEstimate.textContent = 'Paste a key to enable.';
+            els.liveEstimate.textContent = 'No key yet — nothing will run.';
             return;
         }
 
@@ -236,7 +241,18 @@
 
     els.runLive.addEventListener('click', async () => {
         const live = readLive();
-        if (!live) return;
+        if (!live) {
+            alert(
+                'No API key.\n\n'
+                + 'Paste your '
+                + (els.liveProvider.value === 'kie' ? 'kie.ai' : 'Google AI')
+                + ' key into the API key box first — the live tests call your real provider '
+                + 'and cannot do anything without it.\n\n'
+                + 'The key is never saved: it is wiped when the run finishes.'
+            );
+            els.liveKey.focus();
+            return;
+        }
         const R = MirageBudget.round;
         const what = live.useImages
             ? `up to ${live.budget} credits, including one real image`
@@ -307,6 +323,12 @@
     });
 
     render(MirageRunner.snapshot());
+
+    // Never start with a key in the box. Browsers restore form state on reload and
+    // Firefox will autofill a saved credential into a password field regardless of
+    // autocomplete hints — which reads as "a key was supplied" when none was, and
+    // fires a run against a password.
+    els.liveKey.value = '';
     refreshEstimate();
 
     // Boot the sandbox straight away, so the pane is not an empty box and — more

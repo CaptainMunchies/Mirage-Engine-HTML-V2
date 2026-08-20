@@ -38,14 +38,24 @@
             name: 'the key is accepted and the configured models exist',
             group: 'reachability',
             live: true, priority: 1, turns: 0, images: 0,
+            // Everything after this is a variation on the same failure if the
+            // provider will not talk to us, so a failure here stops the run.
+            haltsRunOnFailure: true,
             async run(ctx, t) {
                 // Free: this is an auth probe, not a generation. It runs first so a
                 // wrong key costs one round-trip instead of a whole budget.
                 const W = ctx.win;
                 const cfg = ctx.liveConfig();
+                // The key lives in a different field per provider — reading the
+                // wrong one probes with an empty string and blames the provider.
+                const key = ctx.liveKey();
+
+                t.ok(key, 'no API key reached the sandbox');
+                if (!key) return;
+
                 let res = null, err = null;
                 try {
-                    res = await W.MirageAPI.testApiKey(cfg.apiKey, cfg.provider);
+                    res = await W.MirageAPI.testApiKey(key, cfg.apiProvider);
                 } catch (e) { err = e; }
                 t.notOk(err, `the provider rejected the key: ${err?.message}`);
                 t.ok(res, 'the key check returned nothing');
