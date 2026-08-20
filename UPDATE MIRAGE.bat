@@ -43,13 +43,48 @@ if errorlevel 1 (
     goto :done
 )
 
-if not exist ".git" (
-    echo This folder is not a git clone, so there is nothing to pull into.
-    echo.
-    echo Clone it once instead, into a folder of your choice:
-    echo     git clone -b claude/mirage-v3 https://github.com/CaptainMunchies/Mirage-Engine-HTML-V2.git
-    goto :done
-)
+REM Cheap local probe that fails the same way a fetch would, so the two most
+REM common setup problems are named properly instead of arriving as a wall of
+REM git output halfway through.
+git rev-parse --show-toplevel >"%TEMP%\mirage_top.txt" 2>"%TEMP%\mirage_git_err.txt"
+if not errorlevel 1 goto :repo_ok
+
+findstr /C:"dubious ownership" "%TEMP%\mirage_git_err.txt" >nul
+if errorlevel 1 goto :not_a_repo
+
+REM Drives without ownership metadata (exFAT, FAT32, mapped network drives)
+REM trip git's safe.directory guard. Git prints the fix using single quotes,
+REM which is a POSIX shell convention - cmd.exe does not strip them, so pasting
+REM that line verbatim registers a path with literal quotes in it and changes
+REM nothing. Print the version that actually works here.
+for /f "tokens=2 delims='" %%p in ('findstr /C:"dubious ownership" "%TEMP%\mirage_git_err.txt"') do set "DUBIOUS=%%p"
+echo.
+echo Git will not touch this repo: the drive does not record file ownership,
+echo so it cannot confirm the repo is yours. This is expected on exFAT, FAT32
+echo and mapped network drives, and it is safe to allow on your own machine.
+echo.
+echo Run this once, then run this updater again:
+echo.
+echo     git config --global --add safe.directory "%DUBIOUS%"
+echo.
+echo (Use double quotes, as above. Git's own message suggests single quotes,
+echo  which do not work in Command Prompt.)
+goto :done
+
+:not_a_repo
+echo This folder is not a git clone, so there is nothing to pull into.
+echo.
+echo Clone it once instead, into a folder of your choice:
+echo     git clone -b claude/mirage-v3 https://github.com/CaptainMunchies/Mirage-Engine-HTML-V2.git
+goto :done
+
+:repo_ok
+REM Say which repo is actually being updated. Git searches upward for .git, so
+REM running this from a subfolder can silently target a parent repo you did not
+REM mean to touch.
+set /p TOPLEVEL=<"%TEMP%\mirage_top.txt"
+echo Repository: %TOPLEVEL%
+del "%TEMP%\mirage_top.txt" "%TEMP%\mirage_git_err.txt" >nul 2>nul
 
 echo Checking for local changes...
 git diff --quiet && git diff --cached --quiet
