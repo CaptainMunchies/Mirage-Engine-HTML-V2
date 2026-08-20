@@ -171,16 +171,35 @@ than by the input's `max` attribute — an attribute is a suggestion, and this i
 limit on real money. Tests are priced against the models you actually have
 configured, sorted by priority, and admitted only while the whole cost still fits.
 A test that does not fit is skipped whole, never truncated: half a test tells you
-nothing and still costs money. Spend is metered on *dispatch* — a failed call still
-billed — and a run stops the moment real spend passes the cap.
+nothing and still costs money.
+
+**The cap refuses, it does not merely notice.** The meter checks *before* each call
+and throws `Maximum credits reached` rather than charging and stopping afterwards.
+That distinction was learned the hard way — a real run spent 30 credits against a
+25 cap, because a single image costs several credits and one call past the line
+overshoots by all of it. Spend is still counted on dispatch, since a failed call
+was still billed.
+
+Anything the budget cannot afford appears as a **skipped** row saying exactly what
+it needed and what was left, so a small cap reads as a decision rather than a suite
+that mysteriously shrank. Tests that cost nothing because they read what a paid
+test fetched declare `dependsOn`, and are skipped alongside it — otherwise they
+fail in a way that looks like a defect and is really a budget outcome.
 
 Where a model quotes a price range, the **upper** bound is used. Starting a test on
 the assumption that it gets the cheap end is how a cap gets exceeded.
 
 Rough shape, so the ordering is not mysterious: a thinking turn is ~6k in / 500 out,
 which is a fraction of one credit. The image test is **pinned to Nano Banana 2 Lite**
-— ~4 credits on kie, ~7 on Google — so the whole live suite including an image lands
-around 6–10 credits, well inside the default cap.
+— ~4 credits on kie, ~7 on Google. Twelve tests land at about **15 of the 25**, and
+the remaining headroom is deliberate: the estimator prices every call at a typical
+size, but output length is not knowable in advance, so a run that filled the cap on
+paper could cross it in practice.
+
+**Only the image test renders for real.** Every other live test runs with mock
+images. She sends photos on ordinary turns, so leaving the real renderer on for the
+whole run generated four unbudgeted images in one observed run — 27 credits of
+them, before the image test had even reached the front of the queue.
 
 The image model is pinned rather than inherited from your settings on purpose. The
 test checks that the *pipeline* holds end to end, and that answer is the same

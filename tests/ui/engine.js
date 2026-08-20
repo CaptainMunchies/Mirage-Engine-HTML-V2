@@ -192,12 +192,16 @@
     }
 
     function snapshot() {
-        const counts = { pass: 0, fail: 0, red: 0, fixed: 0 };
+        const counts = { pass: 0, fail: 0, red: 0, fixed: 0, skipped: 0 };
         state.results.forEach(r => { counts[r.status] += 1; });
+        // Skipped rows are seeded before the run starts, so they must not count
+        // as progress or the bar reads past 100% and "stopped early" misfires.
+        const ran = state.results.filter(r => r.status !== 'skipped').length;
         return {
             running: state.running,
             planned: state.planned,
-            done: state.results.length,
+            done: ran,
+            ran,
             current: state.current,
             results: state.results.slice(),
             budget: state.budget ? { ...state.budget } : null,
@@ -242,6 +246,7 @@
 
         let ctx = null;
         let money = null;
+        let currentTest = null;
         try {
             // Live tests need the key in the sandbox's config before the app boots,
             // since that is where api.js reads it from. The sandbox is a separate
@@ -275,6 +280,28 @@
                     spent: 0, turns: 0, images: 0
                 };
 
+                // Anything the budget could not afford becomes a visible row rather
+                // than a silent absence, so a small cap reads as a decision instead
+                // of a suite that mysteriously shrank.
+                plan.skipped.forEach(s => state.results.push({
+                    suite: s.suite.id, suiteTitle: s.suite.title, name: s.test.name,
+                    group: 'not run — budget too small', expectedRed: null, status: 'skipped',
+                    failures: [`Maximum credits reached — ${s.reason}.`],
+                    durationMs: 0, sandboxErrors: []
+                }));
+
+                if (!plan.admitted.length) {
+                    state.results.push({
+                        suite: 'live', suiteTitle: 'Live API — spends real credits',
+                        name: 'nothing could be afforded', group: '', expectedRed: null,
+                        status: 'fail',
+                        failures: [`Maximum credits reached — a ${live.budget} credit cap cannot pay `
+                            + `for any live test. The cheapest needs about `
+                            + `${MirageBudget.round(price.perTurn)} cr. Raise the cap and try again.`],
+                        durationMs: 0, sandboxErrors: []
+                    });
+                }
+
                 money = MirageBudget.meter(win, price, live.budget, () => { cancelled = true; });
                 emit();
             }
@@ -294,7 +321,8 @@
             ctx.liveKey = () => (live ? effectiveKey(liveConfigPatch(live)) : '');
             ctx.resetLive = async () => {
                 if (!live) return ctx.reset();
-                const patch = liveConfigPatch(live);
+                // Only the test that declared needsImages gets a real renderer.
+                const patch = liveConfigPatch(live, { realImages: !!currentTest?.needsImages });
                 const next = await bootSandbox({ wipe: true, config: patch });
                 ctx._rebind(next);
                 if (money) {
@@ -314,6 +342,7 @@
 
             for (const { suite, test } of picked) {
                 if (cancelled) break;
+                currentTest = test;
                 state.current = { suite: suite.id, suiteTitle: suite.title, name: test.name };
                 emit();
 
@@ -323,18 +352,27 @@
                 const callsBefore = money
                     ? { turns: money.state.turns, images: money.state.images }
                     : null;
+                let hitCap = false;
                 try {
                     await test.run(ctx, t);
                 } catch (err) {
-                    failures.push(`threw: ${err && err.message ? err.message : String(err)}`);
+                    // Running out of budget is an outcome, not a defect. Report it
+                    // as itself rather than as a test that threw.
+                    if (err && err.code === 'MIRAGE_BUDGET_EXCEEDED') {
+                        hitCap = true;
+                        failures.push(err.message);
+                    } else {
+                        failures.push(`threw: ${err && err.message ? err.message : String(err)}`);
+                    }
                 }
+                if (money?.state.stopped) hitCap = true;
 
                 // A live test that made no live call proved nothing, and several of
                 // them will pass anyway — asserting on seeded state or on fixtures
                 // the test itself wrote. That turns a dead key into a mixed
                 // pass/fail report that reads like partial success. If a test
                 // declared it would spend, it has to have spent.
-                if (callsBefore && test.live) {
+                if (callsBefore && test.live && !hitCap) {
                     const madeTurns = money.state.turns - callsBefore.turns;
                     const madeImages = money.state.images - callsBefore.images;
                     if ((test.turns || 0) > 0 && madeTurns === 0) {
@@ -425,12 +463,20 @@
      * stayed on its default and looked for a key that had been blanked, producing
      * "Missing X-Mirage-Api-Key header" from a run that had a perfectly good key.
      */
-    function liveConfigPatch(live) {
+    function liveConfigPatch(live, { realImages = false } = {}) {
         const kie = live.provider === 'kie';
         return {
             ...BASE_CONFIG,
             mockThinking: false,
-            mockImages: !live.useImages,
+            // Real images ONLY for the test that asked for them.
+            //
+            // This was `!live.useImages`, which switched real image generation on
+            // for the whole run — and she sends photos on ordinary turns, so four
+            // thinking tests quietly produced four real images. Observed: 30 credits
+            // against a 25 cap, with the image test never even reaching the front of
+            // the queue. Every other live test now renders from the mock, so a turn
+            // costs a turn.
+            mockImages: !realImages,
             developerMode: true,
             pacingMode: 'instant',
             apiProvider: kie ? 'kie' : 'google',
@@ -490,13 +536,16 @@
         lines.push(`duration: ${snap.durationMs != null ? (snap.durationMs / 1000).toFixed(1) + 's' : '—'}`);
         lines.push('');
         lines.push(`RESULT: ${snap.counts.pass} passed, ${snap.counts.fail} failed, `
-            + `${snap.counts.red} known-red, ${snap.counts.fixed} newly fixed  (${snap.total} total)`);
+            + `${snap.counts.red} known-red, ${snap.counts.fixed} newly fixed  (${snap.ran} run)`);
 
         // "1 total" out of 8 planned looks like a small suite rather than an
         // aborted one. Say which it was.
-        if (snap.planned > snap.total) {
-            lines.push(`        STOPPED EARLY — ${snap.planned - snap.total} of ${snap.planned} `
+        if (snap.planned > snap.ran) {
+            lines.push(`        STOPPED EARLY — ${snap.planned - snap.ran} of ${snap.planned} `
                 + 'tests did not run.');
+        }
+        if (snap.counts.skipped) {
+            lines.push(`        ${snap.counts.skipped} test(s) skipped: budget too small.`);
         }
 
         if (snap.budget) {
@@ -513,6 +562,12 @@
             }
         }
         lines.push('');
+
+        if (snap.budget && snap.budget.spent > snap.budget.budget) {
+            lines.push('        WARNING: spend exceeded the cap. That should be impossible — '
+                + 'the meter refuses a call that would cross it. Please report this.');
+            lines.push('');
+        }
 
         const bySuite = new Map();
         snap.results.forEach(r => {

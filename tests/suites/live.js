@@ -83,6 +83,7 @@
             name: 'the real model returns the turn contract, not just prose',
             group: 'the contract',
             live: true, priority: 1, turns: 0, images: 0,
+            dependsOn: 'a real turn round-trips and lands in the thread',
             async run(ctx, t) {
                 // Reads the payload captured by the previous test — no extra call.
                 // This is the highest-value assertion in the suite: the whole engine
@@ -116,6 +117,7 @@
             name: 'live metrics survive the clamp inside their ranges',
             group: 'the contract',
             live: true, priority: 1, turns: 0, images: 0,
+            dependsOn: 'a real turn round-trips and lands in the thread',
             async run(ctx, t) {
                 const v = ctx.visible();
                 t.between(v.arousal, 0, 100, 'arousal escaped its range on a live turn');
@@ -162,12 +164,93 @@
             }
         },
 
+        {
+            name: 'her metrics actually move across consecutive real turns',
+            group: 'the loop',
+            live: true, priority: 2, turns: 2, images: 0,
+            async run(ctx, t) {
+                // The core loop, and only answerable live: the mock returns fixed
+                // tracking, so offline tests can never tell you whether a real model
+                // is reading the metric contract or ignoring it and echoing defaults.
+                await ctx.resetLive();
+                await ctx.seedCharacter();
+
+                const seen = [];
+                await liveTurn(ctx, 'hey, been thinking about you all day');
+                seen.push(ctx.visible());
+                await liveTurn(ctx, 'tell me what you would do if I were there right now');
+                seen.push(ctx.visible());
+
+                t.equal(seen[1].historyLength, 2, 'both turns did not commit');
+
+                const moved = ['arousal', 'tease', 'awareness', 'engagement', 'mood']
+                    .filter(k => seen[0][k] !== seen[1][k]);
+                t.ok(moved.length > 0,
+                    'not one metric changed across two escalating turns — the model is '
+                    + `echoing defaults rather than tracking (${JSON.stringify(seen[1])})`);
+
+                // Whatever it did, it still has to stay legal.
+                t.between(seen[1].arousal, 0, 100, 'arousal escaped its range');
+                t.between(seen[1].tease, 0, 3, 'tease escaped its range');
+            }
+        },
+
+        {
+            name: 'an operator pin survives the next real turn',
+            group: 'authority',
+            live: true, priority: 2, turns: 1, images: 0,
+            async run(ctx, t) {
+                // A pin is meant to hold for one turn and then release, with the
+                // narrative resuming *from* it. Offline the mock cannot disagree;
+                // live, this is the guardrail most likely to be quietly violated.
+                const W = ctx.win;
+                W.MirageCommands.processInput('/arousal 80', W.EngineState, {});
+                const pinned = ctx.visible().arousal;
+                t.equal(pinned, 80, 'the pin did not take locally');
+
+                await liveTurn(ctx, 'so what are you thinking about?');
+                const after = ctx.visible().arousal;
+                t.ok(after >= 60,
+                    `the model pulled a pinned arousal of 80 down to ${after} on the very next turn`);
+            }
+        },
+
+        {
+            name: 'the model emits an image directive the renderer can use',
+            group: 'the contract',
+            live: true, priority: 2, turns: 1, images: 0,
+            async run(ctx, t) {
+                // Costs one thinking turn and no image: it asks for a photo, then
+                // inspects the directive rather than rendering it. Catches the drift
+                // where a model stops emitting imageDirective, which offline mock
+                // mode always supplies and therefore never catches.
+                await liveTurn(ctx, 'send me a selfie of what you are wearing');
+                const raw = lastRaw(ctx);
+                if (!raw) { t.fail('no payload captured for the photo request'); return; }
+
+                let parsed = null;
+                try { parsed = ctx.win.MirageAPI.parseJsonResponse(raw); }
+                catch (e) { t.fail(`the photo turn did not parse: ${e.message}`); return; }
+
+                const d = parsed.imageDirective;
+                t.ok(d && typeof d === 'object',
+                    'the model was asked for a photo and returned no imageDirective');
+                if (d && typeof d === 'object') {
+                    const filled = Object.keys(d).filter(k => String(d[k] || '').trim());
+                    t.ok(filled.length > 0, 'the imageDirective came back empty');
+                }
+            }
+        },
+
         // ============================================================ priority 3
 
         {
             name: 'a long history is compressed and still returns the contract',
             group: 'context',
-            live: true, priority: 3, turns: 1, images: 0,
+            // Its prompt is roughly an order of magnitude above a typical turn, so
+            // it is budgeted as several. The estimator prices every call at the
+            // typical size; over-declaring here keeps the plan honest.
+            live: true, priority: 3, turns: 4, images: 0,
             async run(ctx, t) {
                 // Exercises fitInputBudget against a real tokenizer and a real
                 // context limit — the failure mode is a 400 from the provider, or
@@ -181,10 +264,39 @@
                     mode: 'DM'
                 }));
                 await liveTurn(ctx, 'still there?');
-                const v = ctx.visible();
-                t.ok(v.lastAi && v.lastAi.trim(), 'a long-history turn came back empty');
-                t.noMatch(v.text, /invalid json|malformed|too long|context/i,
+
+                // Assert on the payload, not on lastAi: the fixture above *is* a
+                // history of fake replies, so reading lastAi could pass without the
+                // model having answered at all.
+                const raw = lastRaw(ctx);
+                if (!raw) { t.fail('the long-history turn produced no payload'); return; }
+                try {
+                    const parsed = ctx.win.MirageAPI.parseJsonResponse(raw);
+                    t.ok(typeof parsed.characterResponse === 'string' && parsed.characterResponse.trim(),
+                        'a compressed prompt returned no characterResponse');
+                } catch (e) {
+                    t.fail(`a long history broke the contract: ${e.message}`);
+                }
+                t.noMatch(ctx.visible().text, /invalid json|malformed|too long|context/i,
                     'a long history broke the turn');
+            }
+        },
+
+        {
+            name: 'she answers Hebrew in Hebrew',
+            group: 'context',
+            live: true, priority: 3, turns: 1, images: 0,
+            async run(ctx, t) {
+                // The engine carries ~150 lines of bilingual intent detection and a
+                // Hebrew branch in the prompt. Whether a real model actually replies
+                // in kind is not something mock mode can answer.
+                await ctx.resetLive();
+                await ctx.seedCharacter();
+                await liveTurn(ctx, 'היי, מה שלומך היום?');
+                const v = ctx.visible();
+                t.ok(v.lastAi && v.lastAi.trim(), 'the Hebrew turn came back empty');
+                t.match(v.lastAi, /[֐-׿]/,
+                    'she answered a Hebrew message without a single Hebrew character');
             }
         },
 

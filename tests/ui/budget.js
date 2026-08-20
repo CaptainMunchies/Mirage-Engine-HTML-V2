@@ -98,6 +98,22 @@
             admitted.push({ ...entry, cost });
         }
 
+        // Some tests cost nothing because they read what a paid test already
+        // fetched. Admitting one whose provider is gone produces a failure that
+        // looks like a defect and is really a budget outcome — so drop dependents
+        // too, and say why. Looped, because a dependency can itself be dropped.
+        for (;;) {
+            const names = new Set(admitted.map(a => a.test.name));
+            const orphan = admitted.find(a => a.test.dependsOn && !names.has(a.test.dependsOn));
+            if (!orphan) break;
+            admitted.splice(admitted.indexOf(orphan), 1);
+            committed -= orphan.cost;
+            skipped.push({
+                ...orphan,
+                reason: `needs "${orphan.test.dependsOn}", which the budget could not run`
+            });
+        }
+
         return { admitted, skipped, committed, budget };
     }
 
@@ -124,21 +140,38 @@
         const realThinking = API.thinkingGenerate;
         const realImage = API.imageGenerate;
 
+        /**
+         * Refuse the call *before* it is made, rather than charging it and noticing
+         * afterwards. Noticing afterwards is not a cap: a single image is several
+         * credits, so one call past the line overshoots by all of it. Observed in a
+         * real run — 30 credits spent against a 25 cap.
+         */
+        const guard = (amount, kind) => {
+            if (state.credits + amount <= budget) return;
+            state.stopped = true;
+            try { onOverrun?.(state); } catch (_) { /* reporting must not throw here */ }
+            const err = new Error(
+                `Maximum credits reached — this run's ${budget} credit cap is spent `
+                + `(~${round(state.credits)} used). The next ${kind} would cost about `
+                + `${round(amount)} more, so it was not sent.`
+            );
+            err.code = 'MIRAGE_BUDGET_EXCEEDED';
+            throw err;
+        };
+
         const charge = (amount, kind) => {
             state.credits += amount;
             state[kind] += 1;
-            if (!state.stopped && state.credits > budget) {
-                state.stopped = true;
-                try { onOverrun?.(state); } catch (_) { /* reporting must not throw here */ }
-            }
         };
 
         API.thinkingGenerate = function (...args) {
             // Charged on dispatch, not on success: a call that fails still billed.
+            guard(price.perTurn, 'thinking turn');
             charge(price.perTurn, 'turns');
             return realThinking.apply(this, args);
         };
         API.imageGenerate = function (...args) {
+            guard(price.perImage, 'image');
             charge(price.perImage, 'images');
             return realImage.apply(this, args);
         };

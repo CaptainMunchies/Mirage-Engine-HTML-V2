@@ -70,8 +70,8 @@
             ? ` · ${R(snap.budget.spent)} / ${snap.budget.budget} cr spent`
                 + ` (${snap.budget.turns} turns, ${snap.budget.images} images)`
             : '';
-        const stoppedEarly = !snap.running && snap.planned > snap.total
-            ? ` · stopped early, ${snap.planned - snap.total} not run`
+        const stoppedEarly = !snap.running && snap.planned > snap.ran
+            ? ` · stopped early, ${snap.planned - snap.ran} not run`
             : '';
         els.cMeta.textContent = (snap.durationMs != null
             ? `${snap.total} tests in ${(snap.durationMs / 1000).toFixed(1)}s`
@@ -92,7 +92,15 @@
         }
 
         const onlyProblems = els.onlyProblems.checked;
-        const rows = snap.results.filter(r => !onlyProblems || r.status === 'fail' || r.status === 'red' || r.status === 'fixed');
+        const visible = snap.results.filter(r => !onlyProblems
+            || r.status === 'fail' || r.status === 'red' || r.status === 'fixed'
+            || r.status === 'skipped');
+        // Skipped rows are seeded up front so you can see immediately what the
+        // budget excluded, but they belong below the results, not above them.
+        const rows = [
+            ...visible.filter(r => r.status !== 'skipped'),
+            ...visible.filter(r => r.status === 'skipped')
+        ];
 
         const frag = document.createDocumentFragment();
         let suite = null, group = null;
@@ -118,7 +126,7 @@
         return n;
     }
 
-    const TAG = { pass: 'pass', fail: 'FAIL', red: 'red', fixed: 'FIXED' };
+    const TAG = { pass: 'pass', fail: 'FAIL', red: 'red', fixed: 'FIXED', skipped: 'skip' };
 
     function rowFor(r) {
         const interesting = r.status !== 'pass';
