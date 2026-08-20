@@ -4,7 +4,7 @@ Read this before reporting any change as done.
 
 ---
 
-## 1. Announce loudly when an update needs more than a pull
+## 1. End every update response with the deploy banner
 
 The operator runs `UPDATE MIRAGE.bat` and hard-reloads the browser. That is enough
 for **most** changes. Two kinds of file are not, and silently shipping them has
@@ -17,32 +17,62 @@ broken for a whole session.
 git diff --name-only <last-reported-commit>..HEAD
 ```
 
-If the list contains either file below, the response **must** open with the
-instruction, in bold, not bury it at the end.
+Then close the response with one of the banners below. Rules, without exception:
 
-### `mirage_server.py` → the server must be restarted
+- It is the **last thing in the message.** Nothing after it — no sign-off, no
+  "let me know if…", no further notes. The operator reads bottom-up for this.
+- Always present, even when the answer is "nothing to do". Absence is
+  indistinguishable from having forgotten.
+- Copy the format verbatim: horizontal rule, `##` heading, emoji, bold. It has to
+  survive being skimmed at the end of a long reply.
+- If both a server change and an updater change apply, print **both** blocks,
+  server first.
 
-Python reads it once at startup. A running server keeps executing the old code
-forever. Say:
+### A. `mirage_server.py` changed → restart
 
-> **Restart the server** — close the Mirage server window (or `STOP MIRAGE.bat`),
-> then `START MIRAGE.bat`. This update changes `mirage_server.py`, and the running
-> server is still the old one until you do.
+Python reads that file once at startup, so a running server keeps executing the old
+code forever.
 
-`UPDATE MIRAGE.bat` prints its own banner for this too, but say it in chat as well.
-The operator should not have to notice a banner.
+```markdown
+---
 
-### `UPDATE MIRAGE.bat` → the new behaviour lags one run
+## 🔴🔴 RESTART THE SERVER — THIS UPDATE CHANGES `mirage_server.py`
+
+**Close the Mirage server window** (or run `STOP MIRAGE.bat`), then
+**`START MIRAGE.bat`**.
+
+Until you do, the running server is still the old one and this fix is not live.
+```
+
+### B. `UPDATE MIRAGE.bat` changed → note the one-run lag
 
 The updater stages itself into `%TEMP%` and runs from there, so it *does* update
-itself in a single pull — no second pull is needed to get the files. But the copy
-doing the work is the old one, so **any improvement to the updater only takes
-effect from the next run**. Say that plainly rather than implying a double-pull.
+itself in a single pull. No second pull is needed to get the files — but the copy
+doing the work is the old one.
 
-### When neither changed
+```markdown
+---
 
-Say so. "No server restart needed this time" is useful information, not filler —
-it tells the operator they can skip a step they were braced for.
+## 🟡🟡 THE UPDATER ITSELF CHANGED
+
+The new files **are already in place — no second pull needed.** But the improved
+script only takes effect **from the next time you run it.**
+```
+
+### C. Neither changed → say so, just as loudly
+
+"No restart needed" is useful information, not filler: it tells the operator they
+can skip a step they were braced for.
+
+```markdown
+---
+
+## 🟢🟢 NO RESTART NEEDED
+
+`UPDATE MIRAGE.bat` → **Ctrl+Shift+R** in the browser. That is all.
+
+Nothing in this update touches `mirage_server.py` or `UPDATE MIRAGE.bat`.
+```
 
 ---
 
