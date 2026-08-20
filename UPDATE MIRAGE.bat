@@ -65,14 +65,34 @@ for /f "delims=" %%i in ('git rev-parse HEAD') do set AFTER=%%i
 echo.
 if "%BEFORE%"=="%AFTER%" (
     echo Already up to date - nothing new to pull.
-) else (
-    echo Updated. What changed:
-    echo.
-    git log --oneline %BEFORE%..%AFTER%
-    echo.
-    echo IMPORTANT: in your browser, press Ctrl+Shift+R on the Mirage tab so it
-    echo loads the new code instead of the copy it has cached.
+    goto :done
 )
+
+echo Updated. What changed:
+echo.
+git log --oneline %BEFORE%..%AFTER%
+echo.
+
+REM Python reads mirage_server.py once, at startup. If this update touched it, a
+REM server that is already running is still executing the old code and will keep
+REM doing so until it is restarted - which is exactly the kind of silent staleness
+REM this project has been bitten by before.
+git diff --name-only %BEFORE% %AFTER% > "%TEMP%\mirage_changed.txt"
+findstr /C:"mirage_server.py" "%TEMP%\mirage_changed.txt" >nul
+if not errorlevel 1 (
+    echo ============================================================
+    echo   THE SERVER CHANGED IN THIS UPDATE - RESTART IT.
+    echo.
+    echo   Close the black Mirage server window ^(or run STOP MIRAGE.bat^),
+    echo   then run START MIRAGE.bat again. Until you do, the running
+    echo   server is still the old one.
+    echo ============================================================
+    echo.
+)
+del "%TEMP%\mirage_changed.txt" >nul 2>nul
+
+echo In your browser, press Ctrl+Shift+R on the Mirage tab so it loads the new
+echo code instead of the copy it has cached.
 
 :done
 echo.
