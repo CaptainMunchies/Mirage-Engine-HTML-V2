@@ -40,7 +40,14 @@
         developerMode: true,
         mockThinking: true,
         mockImages: true,
-        pacingMode: 'instant'
+        pacingMode: 'instant',
+        // She posts Stories and follow-ups on her own. That is the product working,
+        // and it is also a second actor racing the test: a proactive turn can
+        // consume a single-use stub, or advance the mock's delivery cycle, so the
+        // turn under test gets a withhold style and lands no text. Two suite-wide
+        // flakes traced back to exactly that. A test that wants proactive behaviour
+        // can switch it back on for itself.
+        proactiveStories: false
     };
 
     // ------------------------------------------------------------------ state
@@ -108,6 +115,34 @@
         frame = null;
     }
 
+    /**
+     * Make the sandbox's randomness reproducible.
+     *
+     * The engine leans on Math.random deliberately — delivery-style weights, the
+     * pacing ladder, shot variance, and the social-hold decision that makes her go
+     * quiet. That last one is why this is here: on a fresh character a turn can
+     * legitimately end in a `cold_ditch` withhold, committing an empty reply and a
+     * "She went quiet…" note. Correct product behaviour, and a coin flip inside a
+     * test — it failed the smoke suite roughly one run in three.
+     *
+     * Layer 2 has had a seeded PRNG since it was written; the browser runner never
+     * got one, which is the actual gap. Seeded after boot rather than before,
+     * because an iframe cannot be given an init script — every per-turn decision
+     * happens well after load, so that is early enough.
+     *
+     * A fixed seed can still land on a withhold, but it will do so every run: a
+     * deterministic red is a bug report, a flaky one is noise.
+     */
+    function seedRandom(win, seed = 0x2f6e2b1) {
+        let x = seed >>> 0;
+        win.Math.random = function () {
+            x ^= x << 13; x >>>= 0;
+            x ^= x >> 17;
+            x ^= x << 5;  x >>>= 0;
+            return x / 0x100000000;
+        };
+    }
+
     function watchErrors(win) {
         const note = (s) => { if (!ENV_NOISE.test(s)) sandboxErrors.push(s); };
         win.addEventListener('error', e => note(`error: ${e.message}`));
@@ -126,7 +161,13 @@
      * reload-and-restore path; `config` is merged over the defaults for this boot
      * and every boot after it, until the next call changes it.
      */
-    async function bootSandbox({ wipe = false, config = null } = {}) {
+    async function bootSandbox({ wipe = false, config = null, resetConfig = false } = {}) {
+        // `resetConfig` puts the defaults back. Without it, a test that boots with
+        // an override (ctx.withConfig) leaves that override in currentConfig, and
+        // every later test inherits it — a plain reset kept maxReplyChars: 120 from
+        // the cap test, which is the kind of thing that surfaces months later as an
+        // unrelated mystery failure.
+        if (resetConfig) currentConfig = { ...BASE_CONFIG };
         if (config) currentConfig = { ...BASE_CONFIG, ...config };
         if (wipe) {
             await wipeSandboxStorage();
@@ -155,6 +196,7 @@
 
         const win = frame.contentWindow;
         watchErrors(win);
+        seedRandom(win);
 
         // init() is async and binds subsystems only after the safety gates resolve.
         const deadline = Date.now() + 20000;
@@ -310,6 +352,8 @@
                 win,
                 reload: (o) => bootSandbox({
                     ...o,
+                    // A live run always reboots into the live config; an offline
+                    // reset with resetConfig goes back to the defaults.
                     config: o?.config || (live ? liveConfigPatch(live) : null)
                 }),
                 errors: () => sandboxErrors.slice(),
@@ -352,6 +396,10 @@
                 const callsBefore = money
                     ? { turns: money.state.turns, images: money.state.images }
                     : null;
+                // Stale payloads are worse than none: a test whose own call did
+                // not happen would otherwise assert against its predecessor's.
+                if (test.live) { try { ctx.win.__liveRaw = null; } catch (_) {} }
+
                 let hitCap = false;
                 try {
                     await test.run(ctx, t);

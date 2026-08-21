@@ -122,9 +122,13 @@
                 return new win.File([bytes], name, { type });
             },
 
-            /** Wipe the sandbox back to a fresh install and boot it again. */
+            /**
+             * Wipe the sandbox back to a fresh install and boot it again.
+             * `resetConfig` matters: a previous test may have booted with an
+             * override, and "fresh install" has to mean the defaults too.
+             */
             async reset() {
-                const next = await reload({ wipe: true });
+                const next = await reload({ wipe: true, resetConfig: true });
                 ctx._rebind(next);
                 win = next;
                 return win;
@@ -181,11 +185,32 @@
              * followed by a short quiet period for the final commit and save.
              */
             async runTurn(text) {
+                const snapshotOf = () => {
+                    const s = win.EngineState.session || {};
+                    return `${win.document.querySelectorAll('#chatLog > *').length}/${s.history?.length ?? 0}`;
+                };
+                const start = snapshotOf();
+
                 await win.MirageSimulation.executeTurn(text);
 
                 const deadline = Date.now() + 30000;
                 const busy = () => (win.MirageSimulation.isEngineBusy?.()
                     ?? win.MirageSimulation.isTurnInProgress?.());
+
+                // Wait for the turn to *start* before waiting for it to stop.
+                //
+                // The stability check below exits once nothing has changed for two
+                // samples — which is also true of a turn that has not begun. If the
+                // engine reads not-busy in the gap between the reply arriving and
+                // the choreography registering, the loop could exit on a thread that
+                // was never written to, and the assertion read an empty history.
+                // Bounded, because a rejected command or an empty message correctly
+                // never starts anything.
+                const startBy = Date.now() + 600;
+                while (Date.now() < startBy && !busy() && snapshotOf() === start) {
+                    await new Promise(r => setTimeout(r, 30));
+                }
+
                 while (busy() && Date.now() < deadline) {
                     await new Promise(r => setTimeout(r, 40));
                 }
@@ -200,6 +225,25 @@
                         + `${s.history?.length ?? 0}/${busy() ? 1 : 0}`;
                     stable = (now === last && !busy()) ? stable + 1 : 0;
                     last = now;
+                }
+
+                // Then wait for the write to land. saveActiveChat is async, and an
+                // idle engine does not mean a flushed one — reloading before the
+                // save resolved lost the reply and failed the restore test
+                // intermittently. Compares what is in the session against what the
+                // store actually holds, so a turn that correctly did not commit
+                // matches immediately.
+                const persisted = () => {
+                    try {
+                        const chat = win.MirageChatStore.getActiveChat(win.EngineState);
+                        return chat ? (chat.history?.length ?? 0) : null;
+                    } catch (_) { return null; }
+                };
+                while (Date.now() < deadline) {
+                    const want = win.EngineState.session?.history?.length ?? 0;
+                    const have = persisted();
+                    if (have === null || have >= want) break;
+                    await new Promise(r => setTimeout(r, 40));
                 }
             },
 

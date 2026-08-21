@@ -117,6 +117,18 @@ everything.
 
 ### Determinism
 
+**Both** runners are now seeded. The browser runner replaces the sandbox's
+`Math.random` with a seeded xorshift immediately after boot; Layer 2 additionally
+installs a fake clock and pinned locale before load, which it needs for baselines.
+
+That gap cost a session. The engine can decide a `cold_ditch` on any turn — she
+goes quiet, the turn commits an empty `ai`, and a "She went quiet…" note appears.
+Correct behaviour, and a coin flip inside a smoke test that asserted she always
+replies. It failed about one run in three, in a different test each time, which
+reads as a broken suite rather than an over-specified assertion. Seeding made it
+reproducible; the assertion was then fixed to check that the turn *resolved* —
+reply **or** announced withhold — which is what the engine actually promises.
+
 The engine leans on randomness deliberately — delivery-style weights, every
 `randBetween` in the pacing ladder, shot variance. Without a seed a baseline would
 re-record noise every run. `lib/determinism.js` installs a seeded xorshift PRNG and

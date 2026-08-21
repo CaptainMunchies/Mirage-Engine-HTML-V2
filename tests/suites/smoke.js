@@ -132,7 +132,17 @@
                 const v = ctx.visible();
                 t.ok(v.entries > before, 'no chat entries were added');
                 t.equal(v.historyLength, 1, 'history did not gain exactly one turn');
-                t.ok(v.lastAi && v.lastAi.length > 0, 'her reply was empty');
+
+                // Not "she replied" — "the turn resolved". Being ignored is a
+                // designed outcome here, not a failure: the engine can decide a
+                // cold_ditch on any turn, which commits an empty ai and posts a
+                // "She went quiet…" note instead. Asserting she always speaks made
+                // this test fail on the product working correctly.
+                const spoke = !!(v.lastAi && v.lastAi.trim());
+                const withheld = /went quiet|left on read|deleted it|gone quiet/i.test(v.text);
+                t.ok(spoke || withheld,
+                    'the turn produced neither a reply nor a withhold notice — '
+                    + `it resolved into silence (${JSON.stringify(v.text.slice(0, 160))})`);
             }
         },
 
@@ -169,7 +179,11 @@
                 t.equal(W.MirageProfileStore.list().length, 1, 'character survived the reload');
                 t.equal(chats.length, 1, 'chat survived the reload');
                 t.equal(chats[0]?.history?.length ?? 0, 1, 'turn survived the reload');
-                t.ok(chats[0]?.history?.[chats[0].history.length - 1]?.ai, 'her reply survived the reload');
+                // The turn surviving is the assertion. Its `ai` may legitimately be
+                // empty — a withheld turn is still a turn, and persisting it is
+                // exactly what should happen.
+                t.ok(chats[0]?.history?.[chats[0].history.length - 1]?.user,
+                    'the restored turn lost the message that started it');
                 t.deepEqual(ctx.errors(), [], 'sandbox errors after reload');
             }
         },

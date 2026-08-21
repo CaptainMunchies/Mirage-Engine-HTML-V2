@@ -201,9 +201,10 @@ again after a skip · every row in 1b is gone.
 ### Phase 2 — Test foundation · ~1–1.5 weeks
 
 > **Status: done.** Lives in `tests/`, with its own `package.json` so the app stays no-build.
-> 50 tests: 10 smoke, 4 recorded scenarios, 34 failure cases, 2 node-only — 47 green and
-> 3 known-red, each naming the phase that closes it. Everything runs with no API key and no
-> credits. `tests/README.md` carries the operating instructions.
+> 51 offline tests: 11 smoke, 4 recorded scenarios, 34 failure cases, 2 node-only — 48 green
+> and 3 known-red, each naming the phase that closes it, and reproducible run to run. Plus 12
+> live tests that call a real provider, never part of `all` and never run without a key.
+> `tests/README.md` carries the operating instructions.
 >
 > Building it found three defects that reading had not: **N18** (server restart refused for a
 > full minute), **N19** (the model can override operator-owned mode) and **N20** (a full disk
@@ -250,6 +251,21 @@ The failure surface, all testable with no API:
 
 **Done when:** the three layers run on demand, the recording is committed as the baseline, and the
 failure suite has known-red tests for the paths Phase 1 didn't cover. — **All three met.**
+
+**But the failure surface above is not fully covered, and the suite should not pretend otherwise.**
+Twelve of the scenarios listed were never written. Recorded here rather than quietly dropped:
+
+| Group | Not covered |
+|---|---|
+| Bad model output | missing `imageDirective` when one is required *(covered live, not offline)* |
+| Provider / network | invalid key · rate limit (429) · server error (500) · empty image · proxy not running |
+| Interruption | cancel during **image** generation · refresh mid-turn (the `mirage_v2_pending_turn` restore path) |
+| Storage | character deleted mid-session |
+| Time | two-day absence · a jump landing on the wrong day |
+| Rules | the 5-unanswered credit guard · thermal pin expiry · outfit lock vs change request · body reference on a single-reference model |
+
+The refresh-mid-turn gap is the most valuable of these: `pending-turn.js` exists precisely for it
+and has no test at all. Phase 3 should close that one at minimum.
 
 Two notes for whoever runs this next. The determinism layer (seeded PRNG, fake clock, pinned
 locale and timezone) is installed *from the test side only*: the engine is not modified and does

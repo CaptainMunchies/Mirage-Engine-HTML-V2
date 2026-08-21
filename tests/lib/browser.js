@@ -208,13 +208,21 @@ function turnPayload(over = {}) {
     });
 }
 
-/** Run one turn and wait for it to fully settle. */
+/**
+ * Run one turn and wait for it to fully settle.
+ *
+ * `isTurnInProgress` is the *hard* busy flag — thinking, image, finalize — and it
+ * goes false while the delivery choreography is still writing her reply into the
+ * thread. Waiting on it and then sleeping a fixed 80ms is a race that the shared
+ * harness already lost once under load, failing a good engine. `isEngineBusy` also
+ * covers choreography, pending holds and wall waits, so that is what to wait on.
+ */
 async function runTurn(page, text) {
     await page.evaluate(async (t) => {
         await MirageSimulation.executeTurn(t);
     }, text);
     await page.waitForFunction(
-        () => !MirageSimulation.isTurnInProgress?.(),
+        () => !(MirageSimulation.isEngineBusy?.() ?? MirageSimulation.isTurnInProgress?.()),
         null,
         { timeout: 30000 }
     ).catch(() => {});
