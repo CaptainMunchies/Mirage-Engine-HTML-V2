@@ -180,7 +180,20 @@
         // before the app's safety gates run, and init() does not stall waiting for
         // a click that headless has nobody to make.
         localStorage.setItem('mirage_v2_safety', JSON.stringify(SAFETY_SEED));
-        localStorage.setItem('mirage_v2_config', JSON.stringify(currentConfig));
+
+        // Merge over what the app already stored, rather than replacing it.
+        //
+        // This used to write currentConfig flat, which erased every key the app
+        // persists into the same blob — `uiResume` above all. That silently made
+        // reload-and-restore untestable: the app came back to the setup screen
+        // because the harness had just deleted the note saying which chat it was
+        // in. Not an app bug; a harness one, and it hid a whole class of test.
+        let stored = {};
+        if (!wipe) {
+            try { stored = JSON.parse(localStorage.getItem('mirage_v2_config') || '{}') || {}; }
+            catch (_) { stored = {}; }
+        }
+        localStorage.setItem('mirage_v2_config', JSON.stringify({ ...stored, ...currentConfig }));
 
         frame = document.createElement('iframe');
         frame.id = 'sandboxFrame';

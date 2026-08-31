@@ -337,6 +337,80 @@
         },
 
         {
+            name: 'a refresh mid-thinking gives you your message back',
+            group: 'interruption',
+            async run(ctx, t) {
+                // pending-turn.js exists for exactly this and had no coverage at
+                // all. A turn saves a marker before it calls the model; a refresh
+                // during thinking must discard the turn, say so, and return the
+                // text to the composer rather than swallowing it.
+                await freshCharacter(ctx);
+                const W = ctx.win;
+                W.MiragePendingTurn.save({
+                    charKey: W.MirageChatStore.characterKey(W.EngineState),
+                    chatId: W.EngineState.session.activeChatId,
+                    text: 'the message I lost to a refresh',
+                    internal: false,
+                    stage: 'thinking'
+                });
+                t.ok(W.MiragePendingTurn.load(), 'the pending marker was not written');
+                // What the app records so a refresh comes back to this chat. Without
+                // it the reload lands in setup and never reaches the recovery path.
+                W.EngineState.session.setupStep = 6;
+                W.EngineState.markUiResume();
+
+                await ctx.reload();
+                await ctx.sleep(400);
+
+                t.equal(ctx.doc.getElementById('simInput')?.value || '',
+                    'the message I lost to a refresh',
+                    'the interrupted message was not returned to the composer');
+                // Read the rendered toast, not the intercepted one: this notice
+                // fires during boot, before anything in the parent can wrap
+                // MirageUI.toast, so watchToasts would never see it.
+                t.match(ctx.doc.body.textContent || '', /interrupted|discarded|restored/i,
+                    'nothing told the operator the turn had been interrupted');
+                t.notOk(ctx.win.MiragePendingTurn.load(),
+                    'the pending marker survived the recovery and will fire again');
+            }
+        },
+
+        {
+            name: 'a refresh mid-image finishes the turn it already paid for',
+            group: 'interruption',
+            expectedRed: 'resumePendingTurnIfAny is defined and exported (simulation.js:3132, '
+                + ':5238) and never called by anything. The second save site stores the parsed '
+                + 'reply so a refresh during image generation can finish the photo, but boot '
+                + 'only ever runs discardInFlightTurn — so a paid-for thinking result is thrown '
+                + 'away and you retype. Wiring it up means generating an image on page load, '
+                + 'which spends credits without a click; that is an operator decision, not a '
+                + 'silent fix. Phase 3 owns it.',
+            async run(ctx, t) {
+                await freshCharacter(ctx);
+                const W = ctx.win;
+                W.MiragePendingTurn.save({
+                    charKey: W.MirageChatStore.characterKey(W.EngineState),
+                    chatId: W.EngineState.session.activeChatId,
+                    text: 'send me a pic',
+                    characterText: 'ALREADYPAIDFOR',
+                    parsed: JSON.parse(ctx.turnPayload({ characterResponse: 'ALREADYPAIDFOR' })),
+                    wantImage: true,
+                    internal: false,
+                    stage: 'image'
+                });
+                W.EngineState.session.setupStep = 6;
+                W.EngineState.markUiResume();
+
+                await ctx.reload();
+                await ctx.sleep(600);
+
+                const v = ctx.visible();
+                t.match(v.text, /ALREADYPAIDFOR/,
+                    'the reply the model had already produced was discarded on refresh');
+            }
+        },
+
+        {
             name: 'a second turn fired mid-turn is refused, not interleaved',
             group: 'interruption',
             async run(ctx, t) {

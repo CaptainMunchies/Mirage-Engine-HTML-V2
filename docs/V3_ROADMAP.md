@@ -259,13 +259,13 @@ Twelve of the scenarios listed were never written. Recorded here rather than qui
 |---|---|
 | Bad model output | missing `imageDirective` when one is required *(covered live, not offline)* |
 | Provider / network | invalid key · rate limit (429) · server error (500) · empty image · proxy not running |
-| Interruption | cancel during **image** generation · refresh mid-turn (the `mirage_v2_pending_turn` restore path) |
+| Interruption | cancel during **image** generation · ~~refresh mid-turn~~ *(covered — see N22)* |
 | Storage | character deleted mid-session |
 | Time | two-day absence · a jump landing on the wrong day |
 | Rules | the 5-unanswered credit guard · thermal pin expiry · outfit lock vs change request · body reference on a single-reference model |
 
-The refresh-mid-turn gap is the most valuable of these: `pending-turn.js` exists precisely for it
-and has no test at all. Phase 3 should close that one at minimum.
+The refresh-mid-turn gap was the most valuable of these and is now closed — and closing it found
+**N22**, below.
 
 Two notes for whoever runs this next. The determinism layer (seeded PRNG, fake clock, pinned
 locale and timezone) is installed *from the test side only*: the engine is not modified and does
@@ -659,6 +659,7 @@ why.
 | N19 | **The model can put the app into Story mode on its own.** `applyTracking` states persona and mode are client-owned and deliberately ignores them — then `simulation.js:4374` honours `tracking.mode === 'STORY'` anyway, flipping the session and the card chrome. Operator authority is a §1 guardrail, and this is the one place a model decision overrides it | **Phase 3** (known-red test exists) |
 | N20 | **A full disk stopped saving turns silently.** `saveActiveChat` is `async`, and 7 call sites wrapped it in a *synchronous* `try/catch`, which cannot catch a rejection — so a quota failure became an unhandled rejection and the storage-full dialog the review verified as "real and wired" was unreachable from those paths. Same shape as D3, which the review caught in only one of its instances | **Phase 2 — done** |
 | N21 | **The browser served months-old app code and nothing said so.** `mirage_server.py` sent static files with only `Last-Modified` and no `Cache-Control`, so Chrome applied heuristic freshness and reused cached JS for days without making a request. The `?v=` query on every script tag was the intended defence, but it is a hand-maintained constant that **had not changed since the project was imported** — so every edit from Phase 1a onward shipped under a cache key the browser already had an answer for. `index.html` carries no version query, so it revalidated and the *new markup* appeared over *old modules*: the Data & backup card rendered and its buttons did nothing, because the cached `app.js` predated the code that binds them. Nothing errored. Fixed by sending `Cache-Control: no-cache` on non-API responses (still 304s off local disk, so it stays fast) and bumping `?v=` to 200 once to flush caches already poisoned. Smoke test added | **Phase 2 — done** |
+| N22 | **The refresh-during-image recovery was built and wired to nothing.** A turn saves a pending marker before it calls the model, and saves it *again* with the parsed reply once thinking succeeds, specifically so a refresh during image generation can finish the photo. `resumePendingTurnIfAny` (`simulation.js:3132`) does exactly that — and is **defined, exported (`:5238`) and never called by anything**. Boot only ever runs `discardInFlightTurn`, so a thinking turn you already paid for is thrown away and you retype the message. Covered by a known-red test. Wiring it up means generating an image on page load, which spends credits without a click, so the fix is an operator decision rather than a silent change | **Phase 3 — decision needed** |
 | I1, I3, I4, I5, I7, I8, I12 | README drift — dead `heat` persona, changed tease scale, mis-described `/fourth wall`, five undocumented commands, the whole kie provider, nine missing modules, undercounted control deck | **Not scheduled** — you chose "list it in the report". See §6, item 3 |
 
 ### Review depth — stated honestly
