@@ -104,6 +104,59 @@
         },
 
         {
+            name: 'every density shows the model the same contract, as clean JSON',
+            group: 'contract',
+            async run(ctx, t) {
+                // The two schemas were hand-maintained twins and had already
+                // drifted — the condensed one lost the tracking.mood note. This is
+                // the test that makes adding a field to only one rendering
+                // impossible, which is the whole point of generating them.
+                const P = ctx.win.MiragePrompt;
+                const densities = ['full', 'medium', 'tight'];
+                const rendered = {};
+
+                for (const d of densities) {
+                    const out = P.phase2For(d);
+                    rendered[d] = out;
+
+                    // B9: a `//` inside a block introduced by "Return ONLY valid
+                    // JSON" teaches the model a syntax JSON.parse then rejects.
+                    t.notOk(/^\s*\/\//m.test(out), `the ${d} schema still contains // comments`);
+
+                    const body = out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1);
+                    try {
+                        JSON.parse(body);
+                    } catch (e) {
+                        t.fail(`the ${d} schema is not parseable JSON: ${e.message}`);
+                    }
+                }
+
+                // Every field of the contract, at any depth, in every rendering.
+                const fields = [];
+                (function walk(o) {
+                    if (Array.isArray(o)) return o.forEach(walk);
+                    if (!o || typeof o !== 'object') return;
+                    Object.keys(o).forEach(k => { fields.push(k); walk(o[k]); });
+                })(P.TURN_CONTRACT);
+                t.ok(fields.length > 20, `only found ${fields.length} contract fields — the walk is wrong`);
+
+                for (const d of densities) {
+                    const missing = fields.filter(f => !rendered[d].includes(`"${f}"`));
+                    t.deepEqual(missing, [], `fields missing from the ${d} rendering`);
+                }
+
+                // And every note, in one length or the other. A note that exists
+                // for one density only is the exact bug this replaced.
+                for (const d of densities) {
+                    const absent = P.CONTRACT_NOTES.filter(n =>
+                        !rendered[d].includes(n.full) && !rendered[d].includes(n.brief));
+                    t.deepEqual(absent.map(n => n.full.slice(0, 40)), [],
+                        `field notes missing from the ${d} rendering`);
+                }
+            }
+        },
+
+        {
             name: 'a character saves and appears in the library',
             group: 'character',
             async run(ctx, t) {

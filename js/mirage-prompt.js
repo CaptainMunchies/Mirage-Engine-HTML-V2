@@ -552,56 +552,107 @@ replayed into every future image and cannot be recovered later.
 Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentary.
 `.trim();
 
-    const PHASE2_TURN = `
-PHASE 2 TASK: ACTIVE ROLEPLAY TURN
-You are the character described below. Stay in character.
+    /**
+     * THE TURN CONTRACT — defined once, rendered for every density.
+     *
+     * This used to be two hand-maintained copies, PHASE2_TURN and
+     * PHASE2_JSON_SCHEMA, and they had already drifted: the condensed copy
+     * collapsed three field notes into one and lost the `tracking.mood` note
+     * outright, so every medium/tight turn was told less about mood than a full
+     * one. Adding a field meant remembering to add it twice. Now there is one
+     * object, and both renderings come out of it.
+     *
+     * The values are the instructions the model reads. Keep them as prose — they
+     * are the prompt, not a type declaration.
+     */
+    const TURN_CONTRACT = {
+        tracking: {
+            persona: "echo the operator's persona from LIVE STATE — never change it",
+            mode: "echo the operator's mode from LIVE STATE — never change it",
+            outfit: "short label of what she is wearing now (prefer an exact OUTFIT_LIBRARY Label; invent only if the look is specific and no library entry fits)",
+            env: "short label of where she is now (atlas entry OR invented — invent freely to fit context)",
+            arousal: 0,
+            tease: 0,
+            awareness: 0,
+            thermal: "Normal",
+            engagement: 0,
+            mood: "Neutral",
+            moodIntensity: 1
+        },
+        characterResponse: "In-character message shown in the app chat UI (never burned into the image)",
+        imageDirective: {
+            shotType: "Front Selfie | Mirror Selfie | POV | Propped",
+            crop: "Extreme | Face | Bust | Torso | Full | Scene",
+            goonFace: "when persona is Goon: CrossTease | TongueOut | Mouth | WideEyes | OpenMouth | Blep | Scrunch | Duckface | DollEyes | LipBite | Pout | Wink",
+            goonFrame: "when persona is Goon: FaceOnly | Cleavage | FrontTorso | FrontHighBody | FrontLowBody | LyingBody | POVDown | ProppedFull | ArmOutFull | MirrorFace | MirrorCleavage | MirrorTorso | MirrorOverShoulder | MirrorBooty | MirrorFullStand | MirrorFullPose | MirrorSquat | MirrorSide | MirrorSit | MirrorHigh",
+            pose: "body vs the lens (angle, what fills the frame, where she looks). Visible phone ONLY for Mirror Selfie (in the reflection)",
+            expression: "emotion only — smile/smirk/frown/gaze. Do not change eye size, lip volume, jaw, or skin",
+            bodyLanguage: "posture, shoulders, hands, head tilt, proximity to lens — readable emotion/attitude",
+            lighting: "light source, direction and quality",
+            imperfections: "lens grain / authentic phone-camera realism (no extra devices in frame)",
+            outfitDetail: "top AND bottoms (or one-piece dress/jumpsuit/romper) of tracking.outfit — colors, fabric, fit. Tight crops still name both",
+            envDetail: "concrete visual description of the environment in tracking.env"
+        },
+        memoryUpdates: [
+            { op: "add", kind: "nickname|promise|plan|tension|preference|fact", text: "short sticky fact worth remembering" }
+        ],
+        delivery: {
+            style: "normal | slow | ghost_type | left_on_read | went_quiet | reaction | double_text",
+            delaySec: null,
+            timeSkipSec: null,
+            timeSkipReason: "short why if timeSkipSec set — e.g. commute to office, slept, tomorrow morning",
+            arriveLocalHour: null,
+            reaction: "any single emoji when style is reaction — e.g. 😂 🔥 👀 💀 🥰 ❤️ 😭 — not limited to hearts",
+            secondMessage: "optional second bubble when style is double_text — e.g. the real reply after 'sorry was in the shower'"
+        }
+    };
 
-OUTPUT: Return ONLY valid JSON (no markdown) with this exact structure:
-{
-  "tracking": {
-    "persona": "echo the operator's persona from LIVE STATE — never change it",
-    "mode": "echo the operator's mode from LIVE STATE — never change it",
-    "outfit": "short label of what she is wearing now (prefer an exact OUTFIT_LIBRARY Label; invent only if the look is specific and no library entry fits)",
-    "env": "short label of where she is now (atlas entry OR invented — invent freely to fit context)",
-    "arousal": 0,
-    "tease": 0,
-    "awareness": 0,
-    "thermal": "Normal",
-    "engagement": 0,
-    "mood": "Neutral",
-    "moodIntensity": 1
-  },
-  // tracking.engagement 0-100 bands: cold ≤25 · cool ≤45 · warm ≤70 · hot ≤100 (attention/investment; orthogonal to arousal)
-  // tracking.attentionSpike: true ONLY when HIS message is high-salience (intrigue / extreme / context-break) — never small talk or commands
-  // tracking.mood: curated label (or short freeform). tracking.moodIntensity 0-3.
-  "characterResponse": "In-character message shown in the app chat UI (never burned into the image)",
-  "imageDirective": {
-    "shotType": "Front Selfie | Mirror Selfie | POV | Propped",
-    "crop": "Extreme | Face | Bust | Torso | Full | Scene",
-    "goonFace": "when persona is Goon: CrossTease | TongueOut | Mouth | WideEyes | OpenMouth | Blep | Scrunch | Duckface | DollEyes | LipBite | Pout | Wink",
-    "goonFrame": "when persona is Goon: FaceOnly | Cleavage | FrontTorso | FrontHighBody | FrontLowBody | LyingBody | POVDown | ProppedFull | ArmOutFull | MirrorFace | MirrorCleavage | MirrorTorso | MirrorOverShoulder | MirrorBooty | MirrorFullStand | MirrorFullPose | MirrorSquat | MirrorSide | MirrorSit | MirrorHigh",
-    "pose": "body vs the lens (angle, what fills the frame, where she looks). Visible phone ONLY for Mirror Selfie (in the reflection)",
-    "expression": "emotion only — smile/smirk/frown/gaze. Do not change eye size, lip volume, jaw, or skin",
-    "bodyLanguage": "posture, shoulders, hands, head tilt, proximity to lens — readable emotion/attitude",
-    "lighting": "light source, direction and quality",
-    "imperfections": "lens grain / authentic phone-camera realism (no extra devices in frame)",
-    "outfitDetail": "top AND bottoms (or one-piece dress/jumpsuit/romper) of tracking.outfit — colors, fabric, fit. Tight crops still name both",
-    "envDetail": "concrete visual description of the environment in tracking.env"
-  },
-  "memoryUpdates": [
-    { "op": "add", "kind": "nickname|promise|plan|tension|preference|fact", "text": "short sticky fact worth remembering" }
-  ],
-  "delivery": {
-    "style": "normal | slow | ghost_type | left_on_read | went_quiet | reaction | double_text",
-    "delaySec": null,
-    "timeSkipSec": null,
-    "timeSkipReason": "short why if timeSkipSec set — e.g. commute to office, slept, tomorrow morning",
-    "arriveLocalHour": null,
-    "reaction": "any single emoji when style is reaction — e.g. 😂 🔥 👀 💀 🥰 ❤️ 😭 — not limited to hearts",
-    "secondMessage": "optional second bubble when style is double_text — e.g. the real reply after 'sorry was in the shower'"
-  }
-}
+    /**
+     * Notes that do not fit inside a JSON value.
+     *
+     * Every note has both lengths, so a shorter density can never silently drop
+     * one — which is exactly how the mood note disappeared before. Add a note and
+     * it appears in all renderings or not at all.
+     */
+    const CONTRACT_NOTES = [
+        {
+            full: 'tracking.engagement 0-100 bands: cold ≤25 · cool ≤45 · warm ≤70 · hot ≤100 (attention/investment; orthogonal to arousal)',
+            brief: 'tracking.engagement 0-100: cold ≤25 · cool ≤45 · warm ≤70 · hot ≤100.'
+        },
+        {
+            full: 'tracking.attentionSpike: true ONLY when HIS message is high-salience (intrigue / extreme / context-break) — never small talk or commands',
+            brief: 'tracking.attentionSpike: true ONLY on HIS high-salience hook — never small talk.'
+        },
+        {
+            full: 'tracking.mood: curated label (or short freeform). tracking.moodIntensity 0-3.',
+            brief: 'tracking.mood: curated label or short freeform; moodIntensity 0-3.'
+        }
+    ];
 
+    /**
+     * Render the contract as clean JSON with the notes kept outside it.
+     *
+     * B9: the old block carried `//` comment lines *inside* a structure introduced
+     * by "Return ONLY valid JSON". Demonstrating comment syntax invites the model
+     * to echo it, and JSON.parse rejects what comes back — extractJsonPayload's
+     * brace matching cannot rescue a comment. What the model sees now parses.
+     */
+    function renderTurnContract({ notes = 'full' } = {}) {
+        const body = JSON.stringify(TURN_CONTRACT, null, 2);
+        const lines = CONTRACT_NOTES.map(n => `- ${notes === 'brief' ? n.brief : n.full}`);
+        return [
+            'OUTPUT: Return ONLY valid JSON (no markdown) with this exact structure:',
+            body,
+            '',
+            'FIELD NOTES (guidance only — not part of the JSON, never echo these):',
+            ...lines
+        ].join('\n');
+    }
+
+    const PHASE2_HEADER = 'PHASE 2 TASK: ACTIVE ROLEPLAY TURN\n'
+        + 'You are the character described below. Stay in character.';
+
+    const PHASE2_RULES_FULL = `
 RULES:
 - PERSONA FIRST: characterResponse and imageDirective MUST embody the PERSONA LOCK from LIVE STATE
   before any other concern. Loyalty / arousal / engagement may colour intensity only — never mute
@@ -691,51 +742,6 @@ RULES:
   that wraps to tomorrow and looks like time went backwards.
 `.trim();
 
-    const PHASE2_JSON_SCHEMA = `
-OUTPUT: Return ONLY valid JSON (no markdown) with this exact structure:
-{
-  "tracking": {
-    "persona": "echo the operator's persona from LIVE STATE — never change it",
-    "mode": "echo the operator's mode from LIVE STATE — never change it",
-    "outfit": "short label of what she is wearing now (prefer an exact OUTFIT_LIBRARY Label; invent only if the look is specific and no library entry fits)",
-    "env": "short label of where she is now (atlas entry OR invented — invent freely to fit context)",
-    "arousal": 0,
-    "tease": 0,
-    "awareness": 0,
-    "thermal": "Normal",
-    "engagement": 0,
-    "mood": "Neutral",
-    "moodIntensity": 1
-  },
-  // tracking.engagement 0-100. tracking.attentionSpike: true ONLY on HIS high-salience hook — never small talk.
-  "characterResponse": "In-character message shown in the app chat UI (never burned into the image)",
-  "imageDirective": {
-    "shotType": "Front Selfie | Mirror Selfie | POV | Propped",
-    "crop": "Extreme | Face | Bust | Torso | Full | Scene",
-    "goonFace": "when persona is Goon: CrossTease | TongueOut | Mouth | WideEyes | OpenMouth | Blep | Scrunch | Duckface | DollEyes | LipBite | Pout | Wink",
-    "goonFrame": "when persona is Goon: FaceOnly | Cleavage | FrontTorso | FrontHighBody | FrontLowBody | LyingBody | POVDown | ProppedFull | ArmOutFull | MirrorFace | MirrorCleavage | MirrorTorso | MirrorOverShoulder | MirrorBooty | MirrorFullStand | MirrorFullPose | MirrorSquat | MirrorSide | MirrorSit | MirrorHigh",
-    "pose": "body vs the lens (angle, what fills the frame, where she looks). Visible phone ONLY for Mirror Selfie (in the reflection)",
-    "expression": "emotion only — smile/smirk/frown/gaze. Do not change eye size, lip volume, jaw, or skin",
-    "bodyLanguage": "posture, shoulders, hands, head tilt, proximity to lens — readable emotion/attitude",
-    "lighting": "light source, direction and quality",
-    "imperfections": "lens grain / authentic phone-camera realism (no extra devices in frame)",
-    "outfitDetail": "top AND bottoms (or one-piece dress/jumpsuit/romper) of tracking.outfit — colors, fabric, fit. Tight crops still name both",
-    "envDetail": "concrete visual description of the environment in tracking.env"
-  },
-  "memoryUpdates": [
-    { "op": "add", "kind": "nickname|promise|plan|tension|preference|fact", "text": "short sticky fact worth remembering" }
-  ],
-  "delivery": {
-    "style": "normal | slow | ghost_type | left_on_read | went_quiet | reaction | double_text",
-    "delaySec": null,
-    "timeSkipSec": null,
-    "timeSkipReason": "short why if timeSkipSec set — e.g. commute to office, slept, tomorrow morning",
-    "arriveLocalHour": null,
-    "reaction": "any single emoji when style is reaction — e.g. 😂 🔥 👀 💀 🥰 ❤️ 😭 — not limited to hearts",
-    "secondMessage": "optional second bubble when style is double_text — e.g. the real reply after 'sorry was in the shower'"
-  }
-}`.trim();
-
     const PHASE2_RULES_MEDIUM = `
 RULES: Persona first in text+image; echo tracking.persona. Mood second — evolve unless pinned; face/bodyLanguage match mood. outfit/env labels agree with outfitDetail/envDetail. outfitDetail names top+bottoms or a one-piece (dress/jumpsuit/romper), never top-only. imageDirective is renderer-only (no dialogue). shotType = Front Selfie|Mirror Selfie|POV|Propped; crop = Extreme|Face|Bust|Torso|Full|Scene — choose both from the beat every turn; shotType MUST change vs the last photo (also rotate crop/camera height). Goon: if he asked she does it; other personas: Would she actually do that? yes honour / no rotate. pose = body vs lens. Goon: goonFace+goonFrame every photo; DUMB faces (CrossTease/TongueOut/Mouth/WideEyes/OpenMouth/Blep) are the gravity, LipBite is rare spice; faces may repeat, frames must change with shotType. Extreme close-ups and body selfies are legal. Metrics in range; evolve thermal+mood from the beat. memoryUpdates for sticky facts; weave CALLBACK NOTE, don't quote ledger. Expression+bodyLanguage must read emotion (no blank face). Expression is acting on THIS FACE — Goon may write committed crossed eyes/tongue-out/vacant stare; never enlarge eyes, toy irises, inflate lips, or doll-smooth skin; FACE still wins identity. Delivery: vary style; reaction = emoji AND text; double_text uses secondMessage; omit delaySec rather than 0; GOD MODE / fit check / change outfit / fourth wall never ghost. High difficulty + low rapport may went_quiet / Story. Proactive beat: Story = public caption; DM = text him. timeSkipSec only when waiting/relocating; land in a soft local window (not 3am, not :00); never on ping-pong or fresh Story→DM; arriveLocalHour must not wrap earlier tonight.
 `.trim();
@@ -744,14 +750,23 @@ RULES: Persona first in text+image; echo tracking.persona. Mood second — evolv
 RULES: Persona first. Mood in text+face. Labels match outfitDetail/envDetail. outfitDetail = top+bottoms or one-piece (dress/jumpsuit). imageDirective = photo only. Self-taken shotType + crop. Goon: goonFace+goonFrame every photo; DUMB faces (crossed/tongue/vacant) are the gravity, LipBite rare. Extreme close-ups and body selfies are legal. Evolve thermal/mood. memoryUpdates for sticky facts. Expression = acting on THIS FACE (Goon may use committed crossed eyes/tongue-out; never enlarge eyes or doll-smooth — FACE wins). Delivery styles as listed; reaction needs emoji+text; skip delaySec if 0. timeSkipSec only for real waits; sensible local landing; never on ping-pong.
 `.trim();
 
+    /**
+     * Every density is the same contract with a different rules block. The schema
+     * is generated, so the three renderings cannot disagree about what a turn is —
+     * only about how much guidance comes with it.
+     */
     function phase2For(density) {
-        if (density === 'tight') {
-            return `PHASE 2 TASK: ACTIVE ROLEPLAY TURN\nYou are the character described below. Stay in character.\n\n${PHASE2_JSON_SCHEMA}\n\n${PHASE2_RULES_TIGHT}`;
-        }
-        if (density === 'medium') {
-            return `PHASE 2 TASK: ACTIVE ROLEPLAY TURN\nYou are the character described below. Stay in character.\n\n${PHASE2_JSON_SCHEMA}\n\n${PHASE2_RULES_MEDIUM}`;
-        }
-        return PHASE2_TURN;
+        const brief = density === 'tight' || density === 'medium';
+        const rules = density === 'tight' ? PHASE2_RULES_TIGHT
+            : density === 'medium' ? PHASE2_RULES_MEDIUM
+                : PHASE2_RULES_FULL;
+        return [
+            PHASE2_HEADER,
+            '',
+            renderTurnContract({ notes: brief ? 'brief' : 'full' }),
+            '',
+            rules
+        ].join('\n');
     }
 
     const PHASE1_SETUP = `
@@ -3860,6 +3875,12 @@ FACE RECOVERY MODE (active — overrides variance):
         startAwakening,
         tickAwakening,
         formatAwakeningRuntimeLine,
+        // The contract itself, so validation checks the same definition the model
+        // was shown rather than a second hand-written list of field names.
+        TURN_CONTRACT,
+        CONTRACT_NOTES,
+        renderTurnContract,
+        phase2For,
         buildThinkingSystemInstruction,
         fitInputBudget,
         formatHistoryForPrompt,
