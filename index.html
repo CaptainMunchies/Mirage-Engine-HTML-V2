@@ -664,6 +664,27 @@
     </div>
 
     <!-- Browser storage full -->
+    <!-- Shown when a refresh interrupted a turn *after* the model had already
+         replied. Finishing it spends an image generation, so it is offered rather
+         than done automatically — see N22. -->
+    <div id="resumeTurnModal" class="modal-backdrop" hidden>
+        <div class="modal" role="dialog" aria-labelledby="resumeTurnTitle" aria-describedby="resumeTurnBody">
+            <header>
+                <h2 id="resumeTurnTitle">Finish her last turn?</h2>
+                <button type="button" class="btn btn-ghost" id="btnCloseResumeTurn" aria-label="Close">×</button>
+            </header>
+            <div id="resumeTurnBody" class="storage-full-body">
+                <p>A refresh interrupted a turn <strong>after she had already replied</strong> — the writing is done and paid for. Only her photo is missing.</p>
+                <p class="storage-full-lead" id="resumeTurnPreview"></p>
+                <p class="card-hint">Finishing generates <strong>one image</strong> and costs image credits. Discarding keeps her reply out of the chat and puts your message back in the box.</p>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="btnResumeTurnDiscard">Discard it</button>
+                <button type="button" class="btn btn-primary" id="btnResumeTurnFinish">Finish the turn</button>
+            </div>
+        </div>
+    </div>
+
     <div id="storageFullModal" class="modal-backdrop" hidden>
         <div class="modal" role="dialog" aria-labelledby="storageFullTitle" aria-describedby="storageFullBody">
             <header>

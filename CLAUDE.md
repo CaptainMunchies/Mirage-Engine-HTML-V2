@@ -98,7 +98,7 @@ version constant.
 ## 4. Tests
 
 ```
-node tests/run.js all      # offline: 53 passed, 3 known-red, 56 total
+node tests/run.js all      # offline: 56 passed, 1 known-red, 57 total
 node tests/run.js smoke    # ~30s, run constantly
 ```
 
@@ -109,8 +109,8 @@ Or in the app: **Settings → Developer → Developer Mode → Open test runner�
 - Layer 2 (baselines) is terminal-only. Read the diff before `--update`.
 - Live tests spend real credits, are never part of `all`, and never run without a
   key. Cap defaults to 25, hard maximum 50.
-- Three Layer 3 tests are `expectedRed` on purpose; each names the phase that
-  closes it. A known-red test that starts passing is reported loudly.
+- One Layer 3 test is `expectedRed` on purpose (the Phase 6 ledger gap) and names
+  the phase that closes it. A known-red test that starts passing is reported loudly.
 
 **A flaky test is worse than a red one.** If a test fails intermittently, root-cause
 it — do not re-run until it goes green.

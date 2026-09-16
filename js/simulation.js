@@ -3121,6 +3121,105 @@
         }
     }
 
+    /**
+     * N22 — decide what a refresh did to the turn that was in flight.
+     *
+     * Two very different situations shared one outcome before this. A refresh
+     * *during thinking* has nothing to salvage: discard it and hand the message
+     * back. A refresh *after* thinking succeeded is different — the reply exists
+     * and was paid for, and `resumePendingTurnIfAny` was written to finish it. That
+     * function was exported and then never called by anything, so the completed
+     * work was thrown away either way and you retyped.
+     *
+     * It is offered rather than resumed automatically: finishing generates an
+     * image, and spending credits because a page reloaded is not a decision the
+     * app should make on its own. To make it automatic instead, call
+     * resumePendingTurnIfAny() here directly in place of the dialog.
+     */
+    function handleInterruptedTurn() {
+        const pending = MiragePendingTurn.load();
+        const resumable = !!(pending
+            && MiragePendingTurn.matches(S(), pending)
+            && pending.parsed
+            && (pending.characterText || pending.parsed.characterResponse));
+
+        if (resumable) {
+            offerToFinishInterruptedTurn(pending);
+            return;
+        }
+
+        const discarded = discardInFlightTurn();
+        if (discarded) {
+            const input = document.getElementById('simInput');
+            if (input && !discarded.internal && discarded.text && !input.value.trim()) {
+                input.value = discarded.text;
+            }
+            MirageUI.toast(
+                discarded.internal
+                    ? 'Interrupted generation discarded — last complete turn restored.'
+                    : 'Interrupted turn discarded — last complete message restored. Your text is back in the box.',
+                'info',
+                { essential: true, duration: 7000 }
+            );
+        }
+    }
+
+    /** The modal for the salvageable case. Leaves the marker in place until answered. */
+    function offerToFinishInterruptedTurn(pending) {
+        const modal = document.getElementById('resumeTurnModal');
+        const preview = document.getElementById('resumeTurnPreview');
+        const reply = String(pending.characterText || pending.parsed?.characterResponse || '').trim();
+
+        // No modal in the markup (older index.html): fall back to the old
+        // behaviour rather than stranding the operator with a hidden prompt.
+        if (!modal) {
+            discardInFlightTurn();
+            MirageUI.toast('Interrupted turn discarded — your text is back in the box.', 'info',
+                { essential: true, duration: 7000 });
+            const input = document.getElementById('simInput');
+            if (input && pending.text && !input.value.trim()) input.value = pending.text;
+            return;
+        }
+
+        if (preview) {
+            preview.textContent = reply ? `She had written: “${reply.slice(0, 180)}${reply.length > 180 ? '…' : ''}”` : '';
+            preview.hidden = !reply;
+        }
+
+        const close = () => { modal.hidden = true; };
+        const finish = document.getElementById('btnResumeTurnFinish');
+        const discard = document.getElementById('btnResumeTurnDiscard');
+        const dismiss = document.getElementById('btnCloseResumeTurn');
+
+        // Fresh handlers each time: the pending turn they close over is different.
+        const onFinish = () => {
+            close();
+            resumePendingTurnIfAny().catch(err => {
+                console.warn('[Mirage] resuming the interrupted turn failed', err);
+                MirageUI.toast('Could not finish that turn — it has been discarded.', 'error');
+                MiragePendingTurn.clear();
+            });
+        };
+        const onDiscard = () => {
+            close();
+            const dropped = discardInFlightTurn();
+            const input = document.getElementById('simInput');
+            if (input && dropped && !dropped.internal && dropped.text && !input.value.trim()) {
+                input.value = dropped.text;
+            }
+            MirageUI.toast('Interrupted turn discarded — your text is back in the box.', 'info',
+                { essential: true, duration: 6000 });
+        };
+
+        if (finish) finish.onclick = onFinish;
+        if (discard) discard.onclick = onDiscard;
+        // The × is "decide later", not "discard": the marker survives, so the
+        // offer comes back next time rather than silently binning paid work.
+        if (dismiss) dismiss.onclick = close;
+
+        modal.hidden = false;
+    }
+
     function discardInFlightTurn() {
         const pending = MiragePendingTurn.load();
         MiragePendingTurn.clear();
@@ -4448,8 +4547,29 @@
                 appendDebugDecision({ kind: 'hint', summary: h });
             });
 
+            // N19 — mode is operator-owned, here as well as in applyTracking.
+            //
+            // `storyLaunch` and `rawIsStoryCmd` are the operator asking for a Story.
+            // `tracking.mode` is the model asking, and it used to be honoured right
+            // here — directly contradicting applyTracking, which ignores the same
+            // field and says in a comment that it is client-owned. One model reply
+            // could put the whole session into Story mode and change what every
+            // later turn rendered. Persona has always been protected this way;
+            // mode now is too.
+            //
+            // Noted rather than silently dropped: the model repeatedly asking for
+            // STORY is a signal the prompt is drifting, and it is worth seeing.
             const trackingMode = String(parsed?.tracking?.mode || '').toUpperCase();
-            if (storyLaunch || rawIsStoryCmd || trackingMode === 'STORY') {
+            if (trackingMode === 'STORY' && !storyLaunch && !rawIsStoryCmd
+                && S().session.mode !== 'STORY') {
+                appendDebugDecision({
+                    kind: 'notice',
+                    summary: 'Model asked for STORY mode — ignored (operator-owned)',
+                    detail: { trackingMode, sessionMode: S().session.mode }
+                });
+            }
+
+            if (storyLaunch || rawIsStoryCmd) {
                 S().session.mode = 'STORY';
                 S().session._storyActive = true;
                 updateHud();
@@ -5005,20 +5125,7 @@
         }
         syncUserProfileUi();
 
-        const discarded = discardInFlightTurn();
-        if (discarded) {
-            const input = document.getElementById('simInput');
-            if (input && !discarded.internal && discarded.text && !input.value.trim()) {
-                input.value = discarded.text;
-            }
-            MirageUI.toast(
-                discarded.internal
-                    ? 'Interrupted generation discarded — last complete turn restored.'
-                    : 'Interrupted turn discarded — last complete message restored. Your text is back in the box.',
-                'info',
-                { essential: true, duration: 7000 }
-            );
-        }
+        handleInterruptedTurn();
         updateTurnActionControls();
     }
 

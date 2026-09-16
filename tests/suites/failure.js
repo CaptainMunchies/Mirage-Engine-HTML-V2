@@ -198,9 +198,6 @@
         {
             name: 'the model cannot change mode — it is operator-owned',
             group: 'bad model output',
-            expectedRed: 'N19 — applyTracking ignores tracking.mode as client-owned, then '
-                + 'simulation.js:4374 honours `trackingMode === "STORY"` anyway. Operator '
-                + 'authority is a §1 guardrail; the contract phase (3) owns the fix.',
             async run(ctx, t) {
                 await freshCharacter(ctx);
                 ctx.win.EngineState.session.mode = 'DM';
@@ -208,6 +205,21 @@
                 ctx.stubThinking(ctx.turnPayload({ tracking: { mode: 'STORY' } }), { times: 1 });
                 await ctx.runTurn('hello');
                 t.equal(ctx.visible().mode, 'DM', 'the model put the app into Story mode on its own');
+            }
+        },
+
+        {
+            name: 'the operator can still put her into Story mode',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // The counter-test to the one above. Blocking the model from
+                // setting mode must not block the operator from setting it — the
+                // point is authority, not that Story mode becomes unreachable.
+                await freshCharacter(ctx);
+                ctx.stubThinking(ctx.turnPayload({ characterResponse: 'story time' }), { times: 1 });
+                await ctx.runTurn('/story');
+                t.equal(ctx.visible().mode, 'STORY',
+                    'the operator asked for a Story and did not get one');
             }
         },
 
@@ -420,16 +432,13 @@
         },
 
         {
-            name: 'a refresh mid-image finishes the turn it already paid for',
+            name: 'a refresh mid-image offers to finish the turn you already paid for',
             group: 'interruption',
-            expectedRed: 'resumePendingTurnIfAny is defined and exported (simulation.js:3132, '
-                + ':5238) and never called by anything. The second save site stores the parsed '
-                + 'reply so a refresh during image generation can finish the photo, but boot '
-                + 'only ever runs discardInFlightTurn — so a paid-for thinking result is thrown '
-                + 'away and you retype. Wiring it up means generating an image on page load, '
-                + 'which spends credits without a click; that is an operator decision, not a '
-                + 'silent fix. Phase 3 owns it.',
             async run(ctx, t) {
+                // N22. The reply exists and was paid for; only the photo is
+                // missing. Offered rather than resumed automatically, because
+                // finishing generates an image and spending credits because a page
+                // reloaded is not the app's call to make.
                 await freshCharacter(ctx);
                 const W = ctx.win;
                 W.MiragePendingTurn.save({
@@ -448,9 +457,21 @@
                 await ctx.reload();
                 await ctx.sleep(600);
 
-                const v = ctx.visible();
-                t.match(v.text, /ALREADYPAIDFOR/,
-                    'the reply the model had already produced was discarded on refresh');
+                const modal = ctx.doc.getElementById('resumeTurnModal');
+                t.ok(modal && !modal.hidden, 'no offer to finish the interrupted turn');
+                t.match(ctx.doc.getElementById('resumeTurnPreview')?.textContent || '',
+                    /ALREADYPAIDFOR/, 'the offer did not show what she had already written');
+
+                // The marker must survive an unanswered offer — binning paid work
+                // because the dialog was dismissed is the bug, not the fix.
+                t.ok(ctx.win.MiragePendingTurn.load(),
+                    'the pending turn was cleared before the operator answered');
+
+                ctx.doc.getElementById('btnResumeTurnDiscard')?.click();
+                await ctx.sleep(200);
+                t.notOk(ctx.win.MiragePendingTurn.load(), 'discarding left the marker behind');
+                t.equal(ctx.doc.getElementById('simInput')?.value || '', 'send me a pic',
+                    'discarding did not return the message to the composer');
             }
         },
 
