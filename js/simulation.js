@@ -2222,6 +2222,90 @@
         });
     }
 
+    /**
+     * Turn the model's `interpretation` block into the same per-turn locks the
+     * client used to derive from keyword matching.
+     *
+     * The regex that did this understood only what was on its list — two hard-coded
+     * vocabularies, English and Hebrew, that had to be extended for every new
+     * garment word and carried special cases like rewriting "booty shorts" so it
+     * was not read as a from-behind camera ask. It also duplicated a judgement the
+     * prompt already asked the model to make, which meant two authorities on one
+     * question and the brittle one going first.
+     *
+     * The model reads the message in any language and reports what was asked; the
+     * client applies exactly the locks it applied before. Only *who decides*
+     * changed.
+     *
+     * Slash commands are untouched: they are unambiguous, the operator owns them,
+     * and they must never depend on a model getting it right.
+     */
+    const CAMERA_REQUEST_CROP = {
+        closeup: 'Extreme',
+        face: 'Face',
+        torso: 'Torso',
+        full: 'Full'
+    };
+
+    function applyModelInterpretation(parsed, sess, cmd) {
+        if (!parsed || !sess) return;
+        // A slash command already said what it wants, explicitly and in the
+        // operator's own words. The model does not get a vote on those.
+        if (cmd?.task === 'command') return;
+
+        const raw = parsed.interpretation;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+
+        const str = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+        const wardrobe = str(raw.wardrobeChange);
+        const place = str(raw.placeChange);
+        const subject = str(raw.subjectRequest) === 'feet' ? 'feet' : null;
+        const camera = String(str(raw.cameraRequest) || '').toLowerCase();
+        const mirrorBack = camera === 'mirror_back';
+        const cropLock = CAMERA_REQUEST_CROP[camera] || null;
+
+        if (wardrobe) {
+            sess._changeOutfitThisTurn = true;
+            sess._outfitLookHintThisTurn = sess._outfitLookHintThisTurn || wardrobe;
+        }
+        if (place) sess._changePlaceThisTurn = true;
+
+        const askedShot = !!(cropLock || subject || mirrorBack);
+
+        // He asked for something specific, so she answers this turn.
+        //
+        // The regex used to force this through `forcePhoto: !!(cropLock ||
+        // userShot)`, and dropping it meant "send me a pic" could be left on read —
+        // caught by the Layer 2 baseline rather than by anyone playing. Same rule,
+        // same effect, decided by the half that can read the sentence.
+        if (askedShot || wardrobe) sess._askDeliverThisTurn = true;
+
+        if (!askedShot) return;
+
+        sess._userAskThisTurn = true;
+        sess._askCropThisTurn = cropLock;
+        sess._askSubjectThisTurn = subject;
+        sess._askMirrorThisTurn = mirrorBack;
+
+        // The hard lock stayed Goon-only before this change, because other personas
+        // are allowed to decline an ask. Keeping that gate means this swaps the
+        // detector without also quietly widening what a detection does.
+        const goon = sess.persona === 'Goon';
+        if (!goon) return;
+
+        sess._cropLockThisTurn = cropLock;
+        sess._closeupThisTurn = cropLock === 'Extreme' || cropLock === 'Face';
+        sess._mirrorBackThisTurn = mirrorBack;
+        sess._subjectLockThisTurn = subject;
+        sess._userShotThisTurn = true;
+
+        appendDebugDecision({
+            kind: 'notice',
+            summary: 'Model read an ask from his message',
+            detail: { wardrobe, place, subject, camera: camera || null }
+        });
+    }
+
     function applyDirectorShotLocks(parsed, sess, cmd) {
         if (!parsed) return;
         const fit = !!(sess?._fitCheckThisTurn || cmd?.fitCheck);
@@ -3914,14 +3998,18 @@
                 S().session._mirrorBackThisTurn = false;
                 S().session._subjectLockThisTurn = null;
                 S().session._userShotThisTurn = true;
+                S().session._askDeliverThisTurn = false;
             } else {
                 S().session._userAskThisTurn = askedShot;
                 S().session._askCropThisTurn = cmd.cropLock || null;
                 S().session._askSubjectThisTurn = cmd.subjectLock || null;
-                S().session._askMirrorThisTurn = !!(cmd.mirrorBack
-                    || (text && typeof MirageCommands?.looksLikeMirrorBackRequest === 'function'
-                        && MirageCommands.looksLikeMirrorBackRequest(text)));
+                // Only what the command said. Free-chat asks arrive later, from the
+                // model's `interpretation`, via applyModelInterpretation.
+                S().session._askMirrorThisTurn = !!cmd.mirrorBack;
                 const forceAsk = !!goon;
+                // Cleared every turn: a stale ask would silently force delivery on
+                // the next one, which is how a one-turn lock becomes permanent.
+                S().session._askDeliverThisTurn = false;
                 S().session._cropLockThisTurn = forceAsk ? (cmd.cropLock || null) : null;
                 S().session._closeupThisTurn = !!(S().session._cropLockThisTurn === 'Extreme'
                     || S().session._cropLockThisTurn === 'Face');
@@ -4447,6 +4535,8 @@
             // had nothing to say. If this ever comes back empty it is a bug, and a
             // visibly empty turn is the correct way to find out.
             characterText = parsed.characterResponse || parsed.response;
+            // Must run before the shot locks below, which read the flags it sets.
+            applyModelInterpretation(parsed, S().session, cmd);
             if (parsed) applyDirectorShotLocks(parsed, S().session, cmd);
             if (mustDeliver && parsed?.delivery && typeof parsed.delivery === 'object') {
                 const st = String(parsed.delivery.style || '').toLowerCase();
@@ -4587,8 +4677,11 @@
                 ensureImageDirective(parsed, S().session);
             }
 
+            // The model's read of his message can promote a turn to must-deliver,
+            // which the client could not know before the reply existed.
+            const deliverThisTurn = mustDeliver || !!S().session._askDeliverThisTurn;
             const plan = MirageImmersion?.planDelivery?.(parsed, S().session, {
-                forceInstant: skipRealtime || mustDeliver,
+                forceInstant: skipRealtime || deliverThisTurn,
                 storyLaunch: !!storyLaunch || cardMode === 'STORY',
                 allowTimeSkip: !isCommand && !storyLaunch && !mustDeliver,
                 // Immediate Story→DM: never narrative-skip (avoids next-day wrap to an earlier clock face)
@@ -4596,7 +4689,7 @@
                 lastUserText: text,
                 proactive: !!proactive,
                 pacingMode: turnPacing,
-                mustDeliver
+                mustDeliver: deliverThisTurn
             }) || {
                 style: 'normal',
                 typingMs: 350,

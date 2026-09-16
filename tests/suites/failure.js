@@ -209,6 +209,83 @@
         },
 
         {
+            name: 'the model\'s read of his message drives the locks',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // The keyword matchers are gone; `interpretation` is the only
+                // signal the client gets about what he asked for.
+                await freshCharacter(ctx);
+                ctx.win.EngineState.session.persona = 'Goon';
+                ctx.stubThinking(ctx.turnPayload({
+                    characterResponse: 'ok',
+                    interpretation: {
+                        wardrobeChange: 'red kimono',
+                        placeChange: 'the kitchen',
+                        subjectRequest: 'feet',
+                        cameraRequest: 'closeup'
+                    }
+                }), { times: 1 });
+                // The locks are per-turn and cleared once the turn settles, so read
+                // them while the turn is live — from the decision log the engine
+                // writes as it applies them.
+                const seen = [];
+                ctx.win.MirageDebugPanel.pushDecision = ((real) => function (evt) {
+                    seen.push(evt);
+                    return real?.apply(this, arguments);
+                })(ctx.win.MirageDebugPanel.pushDecision);
+
+                await ctx.runTurn('anything at all, in any language');
+
+                const read = seen.find(e => /read an ask/i.test(String(e?.summary || '')));
+                t.ok(read, 'the model reported asks and the client applied none of them');
+                if (read) {
+                    t.equal(read.detail.subject, 'feet', 'a reported feet ask did not lock');
+                    t.equal(read.detail.camera, 'closeup', 'a reported closeup did not reach the lock');
+                    t.equal(read.detail.wardrobe, 'red kimono', 'a reported wardrobe change was dropped');
+                    t.equal(read.detail.place, 'the kitchen', 'a reported place change was dropped');
+                }
+            }
+        },
+
+        {
+            name: 'a slash command outranks whatever the model reports',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // Operator authority again: a typed command is unambiguous and must
+                // never depend on the model agreeing about what it meant.
+                await freshCharacter(ctx);
+                ctx.win.EngineState.session.persona = 'Goon';
+                ctx.stubThinking(ctx.turnPayload({
+                    characterResponse: 'ok',
+                    interpretation: {
+                        wardrobeChange: null, placeChange: null,
+                        subjectRequest: 'feet', cameraRequest: 'closeup'
+                    }
+                }), { times: 1 });
+                await ctx.runTurn('/fit check');
+
+                const sess = ctx.win.EngineState.session;
+                t.notOk(sess._subjectLockThisTurn === 'feet',
+                    'the model overrode a slash command');
+            }
+        },
+
+        {
+            name: 'a missing or malformed interpretation does not break the turn',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // Older prompts, or a model that ignores the block. The turn must
+                // still land — this field steers, it is not required.
+                await freshCharacter(ctx);
+                ctx.stubThinking(ctx.turnPayload({
+                    characterResponse: 'NOINTERP', interpretation: 'not an object'
+                }), { times: 1 });
+                await ctx.runTurn('hey');
+                t.match(ctx.visible().lastAi, /NOINTERP/, 'a malformed interpretation lost the turn');
+            }
+        },
+
+        {
             name: 'the operator can still put her into Story mode',
             group: 'bad model output',
             async run(ctx, t) {

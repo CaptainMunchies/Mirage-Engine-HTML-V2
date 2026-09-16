@@ -579,6 +579,12 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
             mood: "Neutral",
             moodIntensity: 1
         },
+        interpretation: {
+            wardrobeChange: "if HIS message asks her to change clothes: the look he asked for, in his words. Otherwise null",
+            placeChange: "if HIS message asks her to move somewhere: the place, in his words. Otherwise null",
+            subjectRequest: "feet — only when he specifically asked to see her feet. Otherwise null",
+            cameraRequest: "closeup | face | torso | full | mirror_back — only when HE asked for that framing. Otherwise null"
+        },
         characterResponse: "In-character message shown in the app chat UI (never burned into the image)",
         imageDirective: {
             shotType: "Front Selfie | Mirror Selfie | POV | Propped",
@@ -626,6 +632,15 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
         {
             full: 'tracking.mood: curated label (or short freeform). tracking.moodIntensity 0-3.',
             brief: 'tracking.mood: curated label or short freeform; moodIntensity 0-3.'
+        },
+        {
+            full: 'interpretation: report what HIS message asked for, in any language, or null for each field. '
+                + 'This replaces client-side keyword matching, so it is the only signal the app has — if he asked '
+                + 'for a wardrobe change and you leave wardrobeChange null, nothing will lock. Report only what he '
+                + 'actually asked for: do not fill these in because the scene drifted or because you chose a look '
+                + 'yourself. subjectRequest and cameraRequest are for explicit asks only.',
+            brief: 'interpretation: what HIS message asked for (any language), or null. Only explicit asks — '
+                + 'it is the app\'s only signal, and inventing one locks the shot wrongly.'
         }
     ];
 

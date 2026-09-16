@@ -311,11 +311,24 @@ misspell something invisibly. Other files get typed only as they're touched.
 NOTES heading; all three renderings parse. Verified by injecting a `//` back in and watching the
 test fail on both the comment and the unparseable JSON.
 
-**AI reports intent.** Delete the ~150 lines of Hebrew/English keyword matching that guesses whether
-the user asked for an outfit change, a move, a mirror shot, or a close-up. Add an `interpretation`
-block to the reply format instead — the AI says what it understood, and the client applies exactly
-the same locks it applies today. Works in any language, with no keyword list to maintain.
-Deterministic slash commands stay client-parsed.
+**AI reports intent.** ✅ **Done (free chat).** `interpretation` is part of the turn contract; the
+model reports wardrobeChange / placeChange / subjectRequest / cameraRequest in any language and
+`applyModelInterpretation` applies exactly the locks the regex applied. The free-chat matchers are
+deleted: `looksLikeOutfitChangeRequest`, `looksLikePlaceChangeRequest`, `looksLikeShotDirection`,
+`looksLikeBodyPartShowRequest`, `subjectLockFromRequest`, `wardrobeContextBlob`.
+
+**Not deleted, and deliberately so:** the god-mode instruction path still shapes a directive from
+operator-written text (`cropLockFromRequest`, `askedNamedShotMethod`, `instructionWantsMirrorShot`,
+and the `looksLikeFeetRequest` / `looksLikeMirrorBackRequest` they call). That path has no competing
+model judgement — god mode *lifts* the locks — so it was out of scope for this change. It is the
+obvious next candidate if the interpretation block proves reliable.
+
+Two things this surfaced. The regex was also feeding the *thinking* prompt through
+`teaseWearHintForThinking` and `formatRuntimeContext`, so removing it means the model now decides
+from the message alone with no client hint — intended, but it is the part no test can judge. And
+`forcePhoto: !!(cropLock || userShot)` meant a detected ask forced delivery; dropping it let "send me
+a pic" be left on read, which the Layer 2 baseline caught rather than a person. Restored through
+`interpretation` instead.
 
 **Done when:** the format exists in one place; a deliberately malformed reply triggers a visible
 retry rather than "…"; the keyword-matching module is deleted and the intent tests pass.

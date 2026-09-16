@@ -98,7 +98,7 @@ version constant.
 ## 4. Tests
 
 ```
-node tests/run.js all      # offline: 56 passed, 1 known-red, 57 total
+node tests/run.js all      # offline: 59 passed, 1 known-red, 60 total
 node tests/run.js smoke    # ~30s, run constantly
 ```
 

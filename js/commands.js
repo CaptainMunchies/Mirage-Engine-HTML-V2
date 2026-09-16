@@ -165,56 +165,8 @@
         return { mood, intensity, note };
     }
 
-    function wardrobeContextBlob(sess) {
-        const hist = Array.isArray(sess?.history) ? sess.history : [];
-        return hist.slice(-4).map(h => `${h.user || ''} ${h.ai || ''}`).join('\n');
-    }
 
-    function looksLikeOutfitChangeRequest(raw, sess) {
-        const text = String(raw || '').trim();
-        if (!text || text.startsWith('/')) return false;
-        const heVerb = /תחליפ|תתחלפ|להחליף|תחזירי?|תלבש|תתלבש|תתפשט|תוציא[יי]?|תוריד[יי]?|תשימ[יי]?|שימ[יי]?|לבש[יי]?/;
-        const heClothes = /בגד|בגדים|לבוש|חולצה|גופי[יה]|מכנס|ג['׳]?ינס|סוודר|שמלה|שורט|טייץ|חצאית|מעיל|קפוצ|אאוטפיט|אוטפיט|outfit|לוק|מדי[םבא]?|מדים|אחיד|לסט|הסט|סט ספורט|ספורט|חליפה|חליפת|טרנינג|אימון|קרופ|גופיה/;
-        if (heVerb.test(text) && heClothes.test(text)) return true;
-        // "תחליפי ל…" = change into X (סט ספורט, מדי, etc.) — not "change the subject/channel"
-        if (/תחליפ[יי]?\s+ל/.test(text) && !/לנושא|לערוץ|למצב|לשפה/.test(text)) return true;
-        if (/תחליפ[יי]?/.test(text) && /משהו|אחר|חדש|סקסי|מחרמן|חמים|לוק|חום|שחור|לבן|אפור/.test(text)) return true;
-        if (/עוד\s*(אאוטפיט|אוטפיט|לוקים?|בגדים|סט)/.test(text)) return true;
-        if (/(אאוטפיט|אוטפיטים)/.test(text) && /עוד|אחר|חדש|תחליפ|תעש/.test(text)) return true;
-        if (heClothes.test(text) && /התכוונת|לא זה|לא אלה|מה שאת לובשת|זה לא|meant|not (that|those|the one)|that'?s (dress|class|type)/i.test(text)) {
-            return true;
-        }
-        const enClothes = /\b(clothes|clothing|outfit|outfits|wardrobe|hoodie|sweater|jeans|shorts|dress|shirt|pants|top|bra|lingerie|fit|look|uniform|kit|set|gym|sport|sportswear|activewear|tracksuit|matching)\b/i;
-        const enVerb = /\b(change|switch|swap|wear|put on|put back|get (?:into|dressed|changed)|cover up|strip|undress|take off|go back to|change into|change out of)\b/i;
-        if (enVerb.test(text) && enClothes.test(text)) return true;
-        if (/\b(get dressed|cover up|change clothes|change outfit|wardrobe change|another outfit|different outfit|new outfit|new look)\b/i.test(text)) return true;
-        if (/\b(change|swap|switch)\s+(to\s+)?(something|a new|another)\b/i.test(text)
-            && /\b(hotter|sexier|cuter|new|else|different)\b/i.test(text)) return true;
-        const prior = wardrobeContextBlob(sess);
-        const threadIsClothes = heClothes.test(prior) || enClothes.test(prior)
-            || /תחליפ[יי]?\s+ל/.test(prior);
-        if (threadIsClothes) {
-            if (/^(נו+\s*)?תחליפ[יי]?\s*[.!?…]*$/.test(text)) return true;
-            if (/^(just |so |ok |okay |go on[, ]*)?(change|switch it|do it|put it on)\s*[.!?]*$/i.test(text)) return true;
-        }
-        return false;
-    }
 
-    function looksLikePlaceChangeRequest(raw) {
-        const text = String(raw || '').trim();
-        if (!text || text.startsWith('/')) return false;
-        if (/\b(go (?:to|into|over to)|come (?:to|over|here)|meet me (?:at|in)|head to|leave (?:the )?(?:room|house|apartment))\b/i.test(text)) {
-            return true;
-        }
-        if (/\b(on the bed|in (?:the )?(?:bed)?room|to (?:the )?bed(?:room)?|in (?:the )?(?:kitchen|bathroom|living room|lounge|balcony)|to (?:the )?(?:kitchen|bathroom|living room|balcony))\b/i.test(text)) {
-            return true;
-        }
-        if (/(^|\s)(תלכ[יי]|לכ[יי] ל|תבואי|בואי ל|צאי מ)/.test(text)) return true;
-        if (/על המיטה|למיטה|שבי על|תשכבי|לחדר השינה|עברי לחדר|לכי לחדר|בחדר השינה|בשירותים|לשירותים|במטבח|למטבח|בסלון|לסלון|למרפסת/.test(text)) {
-            return true;
-        }
-        return false;
-    }
 
     function looksLikeMirrorBackRequest(raw) {
         let text = String(raw || '').trim();
@@ -243,32 +195,8 @@
         return false;
     }
 
-    function looksLikeBodyPartShowRequest(raw) {
-        const text = String(raw || '').trim();
-        if (!text) return false;
-        if (looksLikeFeetRequest(text)) return true;
-        const wantsSee = /רוצה לראות|תן לי לראות|לראות את|תרא[היי]|show me|let me see|send .{0,24}(pic|photo|selfie)|take .{0,16}(pic|photo)/i;
-        const bodyNoun = /כפות|רגליים|רגל|ידיים|ישבן|תחת|חזה|בטן|גוף|מאחור|שוק|\b(feet|foot|soles|toes|booty|ass|butt|legs?|hands?|stomach|body)\b|from behind/i;
-        return wantsSee.test(text) && bodyNoun.test(text);
-    }
 
-    function subjectLockFromRequest(raw) {
-        if (looksLikeFeetRequest(raw)) return 'feet';
-        return null;
-    }
 
-    function looksLikeShotDirection(raw) {
-        const text = String(raw || '').trim();
-        if (!text || text.startsWith('/')) return false;
-        if (cropLockFromRequest(text)) return true;
-        if (looksLikeBodyPartShowRequest(text) || looksLikeFeetRequest(text)) return true;
-        if (looksLikeMirrorBackRequest(text)) return true;
-        if (/\b(mirror|selfie|pose|from behind|over[- ]shoulder|show me|send (?:me )?(?:a |another )?(?:pic|photo|selfie)|turn around)\b/i.test(text)) {
-            return true;
-        }
-        if (/תרא[היי]|תצלמ|במראה|המראה|מראה|סלפי|תסתובב|מאחור|אחורה|תרימ[יי]|תמתח|רוצה לראות|לראות את|למצלמה|מעל הכתף/.test(text)) return true;
-        return false;
-    }
 
     function leaveStoryForDirectorTurn(sess) {
         if (!sess) return;
@@ -596,30 +524,28 @@
             inject.push(
                 'WARDROBE INTENT: You decide if HIS message is asking her to change clothes — any wording, any language. If he is not asking for clothes, keep Live State exactly; a new selfie is not a wardrobe change. Goon: if he asked, she complies (tracking.outfit + outfitDetail = the new look; prefer an OUTFIT_LIBRARY Label). Other personas: Would she actually change into that in this place, hour, and persona — as if real life? If YES: tracking.outfit + outfitDetail MUST be the new look (prefer an exact OUTFIT_LIBRARY Label). If NO: keep Live State and stay in character. New or kept: outfitDetail names a top AND bottoms, or a one-piece (dress/jumpsuit/romper).'
             );
-            const clothesAsk = looksLikeOutfitChangeRequest(text, sess);
-            const specificLook = clothesAsk && typeof MiragePrompt?.isSpecificOutfitLook === 'function'
-                && MiragePrompt.isSpecificOutfitLook(text);
-            if (specificLook && typeof MiragePrompt?.formatOutfitLibraryHint === 'function') {
-                inject.push(MiragePrompt.formatOutfitLibraryHint(sess, {
-                    lookHint: text,
-                    exclude: sess?.outfit || ''
-                }));
-            } else if (clothesAsk && typeof MiragePrompt?.formatOutfitLibraryHint === 'function') {
+            // No keyword matching here any more. The model reads his message and
+            // reports what it asked for in `interpretation`; simulation.js applies
+            // the same locks afterwards. What used to be decided twice — once by a
+            // regex that only knew the words on its list, once by the model — is
+            // now decided once, by the half that can read any language.
+            //
+            // The outfit library hint is still offered unconditionally: it is
+            // context, not a lock, and the model needs the Labels available in case
+            // it decides this *is* a wardrobe change.
+            if (typeof MiragePrompt?.formatOutfitLibraryHint === 'function') {
                 inject.push(MiragePrompt.formatOutfitLibraryHint(sess, {
                     lookHint: '',
                     exclude: sess?.outfit || ''
                 }));
             }
-            const subjectLock = subjectLockFromRequest(text);
-            const cropLock = cropLockFromRequest(text);
-            const closeup = cropLock === 'Extreme' || cropLock === 'Face';
-            const mirrorBack = looksLikeMirrorBackRequest(text);
-            if (subjectLock) inject.push(...subjectDirectorLines(subjectLock, { fromCommand: false, sess }));
-            else if (mirrorBack) inject.push(...mirrorBackDirectorLines({ fromCommand: false, sess }));
-            else if (cropLock) inject.push(...cropDirectorLines(cropLock, { fromCommand: false, sess }));
-            const userShot = !!(cropLock || subjectLock || mirrorBack || looksLikeShotDirection(text));
-            const changePlace = looksLikePlaceChangeRequest(text);
-            if (changePlace) inject.push(...placeAskDirectorLines(text, sess));
+            const subjectLock = null;
+            const cropLock = null;
+            const closeup = false;
+            const mirrorBack = false;
+            const userShot = false;
+            const changePlace = false;
+            const specificLook = false;
 
             // Operator typed while a Story is live → STORY→DM.
             // Internal lottery beats (time pass / wait / idle) are NOT him replying —
@@ -1014,20 +940,21 @@
                 'Still apply FACE LOCK, no on-image text, and no nudity. Do not change CURRENT_PERSONA unless the operator used /persona.',
                 'DELIVERY LOCK: delivery.style MUST be normal (reaction allowed). FORBIDDEN: left_on_read, ghost_type, withhold, silence. She replies with a photo this turn.'
             );
-            const clothesAsk = looksLikeOutfitChangeRequest(instruction, sess)
-                || /\b(wear|outfit|clothes|dress|uniform|costume|crop top|booty shorts|tube top)\b/i.test(instruction)
-                || /תחליפ|תלבש|מדי|תחפושת/.test(instruction);
-            const specificLook = clothesAsk && (typeof MiragePrompt?.isSpecificOutfitLook === 'function'
-                ? MiragePrompt.isSpecificOutfitLook(instruction)
-                : true);
-            if (clothesAsk && typeof MiragePrompt?.formatOutfitLibraryHint === 'function') {
+            // God mode lifts every lock for one turn, so the instruction is handed
+            // over whole rather than keyword-scanned for what it might contain.
+            // The library hint goes in unconditionally — it is context the model may
+            // need, and deciding whether to include it was the guessing this change
+            // set out to remove.
+            const specificLook = true;
+            if (typeof MiragePrompt?.formatOutfitLibraryHint === 'function') {
                 inject.push(MiragePrompt.formatOutfitLibraryHint(sess, {
-                    lookHint: specificLook ? instruction : '',
+                    lookHint: instruction,
                     exclude: sess?.outfit || ''
                 }));
             }
-            const placeAsk = looksLikePlaceChangeRequest(instruction)
-                || /laying|lying|on (the )?bed|in bed|bedroom|kitchen|bathroom|living room|על המיטה|בחדר|במטבח|בסלון/i.test(instruction);
+            // God mode always allows a place change; the model reports whether the
+            // instruction actually asked for one via `interpretation.placeChange`.
+            const placeAsk = true;
             const clipped = instruction.length > 80 ? `${instruction.slice(0, 79)}…` : instruction;
             return {
                 proceed: true,
@@ -1175,14 +1102,10 @@
         applyOutfitChangeRequest,
         normalizePersona,
         isViewStory,
-        looksLikeOutfitChangeRequest,
-        looksLikeShotDirection,
-        looksLikePlaceChangeRequest,
         looksLikeMirrorBackRequest,
         looksLikeFeetRequest,
         looksLikeCloseupRequest,
         cropLockFromRequest,
-        subjectLockFromRequest,
         directiveHonoursAsk,
         PERSONA_MAP,
         METRIC_COMMANDS

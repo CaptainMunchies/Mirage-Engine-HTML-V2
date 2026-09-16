@@ -222,6 +222,32 @@
         return style;
     }
 
+    /**
+     * A crude stand-in for the model's read of his message.
+     *
+     * Deliberately English-only and obvious: it exists so offline turns carry an
+     * `interpretation` at all, not to be good at the job. The real model handles
+     * any language — that is the entire point of moving this decision to it.
+     */
+    function mockInterpretation(userLine) {
+        const t = String(userLine || '').trim();
+        const none = { wardrobeChange: null, placeChange: null, subjectRequest: null, cameraRequest: null };
+        if (!t || t.startsWith('/')) return none;
+
+        const asksPhoto = /\b(pic|photo|selfie|send me|show me|let me see)\b/i.test(t);
+        return {
+            wardrobeChange: /\b(wear|change|put on|outfit|clothes|dress|hoodie|shorts|lingerie)\b/i.test(t)
+                ? t.slice(0, 60) : null,
+            placeChange: /\b(go to|come to|bedroom|kitchen|bathroom|balcony|on the bed)\b/i.test(t)
+                ? t.slice(0, 60) : null,
+            subjectRequest: /\b(feet|foot|soles|toes)\b/i.test(t) ? 'feet' : null,
+            cameraRequest: /\b(close ?up|closeup)\b/i.test(t) ? 'closeup'
+                : /\b(from behind|over[- ]shoulder|mirror)\b/i.test(t) ? 'mirror_back'
+                    : /\b(full[- ]?body|head to toe)\b/i.test(t) ? 'full'
+                        : asksPhoto ? 'torso' : null
+        };
+    }
+
     /** Restart the cycle so a test run is reproducible from its first turn. */
     function resetDeliveryCycle() {
         deliveryCursor = 0;
@@ -281,6 +307,16 @@
                 compliance: sess.compliance || 'engaged'
             },
             characterResponse,
+            // The mock stands in for the model, so it has to honour the same
+            // contract — including `interpretation`, which is now the only signal
+            // the client gets about what HIS message asked for. Without it, every
+            // offline turn looks like a message that asked for nothing, and the
+            // whole intent path would be untestable.
+            //
+            // Keyword matching is fine *here* precisely because this is the
+            // stand-in. It is not the production path and must never be treated as
+            // one: the real model reads the sentence, in any language.
+            interpretation: mockInterpretation(userLine),
             memoryUpdates,
             delivery: {
                 style,
