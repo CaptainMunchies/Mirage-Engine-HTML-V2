@@ -339,9 +339,9 @@
             }
             if (maxThinkingInputSelect) {
                 const n = Number(S().maxThinkingInputTokens);
-                const allowed = ['2500', '4500', '8000', '0'];
-                const key = Number.isFinite(n) && n <= 0 ? '0' : String(Math.round(n || 4500));
-                maxThinkingInputSelect.value = allowed.includes(key) ? key : '4500';
+                const allowed = ['2500', '4500', '6000', '8000', '12000', '0'];
+                const key = Number.isFinite(n) && n <= 0 ? '0' : String(Math.round(n || 6000));
+                maxThinkingInputSelect.value = allowed.includes(key) ? key : '6000';
             }
             syncImageSaveUi();
             syncDeveloperUi();

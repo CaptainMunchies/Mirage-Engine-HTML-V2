@@ -301,9 +301,14 @@
         maxReplyChars: 240,
         /**
          * Target thinking-model INPUT tokens per play turn (system + user parts).
-         * 0 = unlimited (no compressor). Default 4500.
+         * 0 = unlimited (no compressor).
+         *
+         * 6000, not 4500: the medium-density system instruction alone measures ~3.2k
+         * tokens for a bare character and ~4.9k once a real EDF is loaded, so a 4500
+         * ceiling left nothing for history — it trimmed the conversation to zero and
+         * still came in over budget.
          */
-        maxThinkingInputTokens: 4500,
+        maxThinkingInputTokens: 6000,
 
         mediaFiles: [],
         /** In-memory photo library entries: { id, fileName, mimeType, size, file } */
@@ -379,8 +384,8 @@
                     const n = Number(cfg.maxThinkingInputTokens);
                     if (Number.isFinite(n) && n <= 0) this.maxThinkingInputTokens = 0;
                     else if (Number.isFinite(n)) {
-                        const allowed = [2500, 4500, 8000];
-                        this.maxThinkingInputTokens = allowed.includes(n) ? n : 4500;
+                        const allowed = [2500, 4500, 6000, 8000, 12000];
+                        this.maxThinkingInputTokens = allowed.includes(n) ? n : 6000;
                     }
                 }
                 if (cfg.pacingMode != null || typeof cfg.realTimeChat === 'boolean') {
@@ -476,8 +481,8 @@
                     ? Math.max(0, Math.min(4000, Math.round(Number(this.maxReplyChars))))
                     : 240,
                 maxThinkingInputTokens: Number.isFinite(Number(this.maxThinkingInputTokens))
-                    ? Math.max(0, Math.min(8000, Math.round(Number(this.maxThinkingInputTokens))))
-                    : 4500,
+                    ? Math.max(0, Math.min(12000, Math.round(Number(this.maxThinkingInputTokens))))
+                    : 6000,
                 pacingMode: normalizePacingMode(this.pacingMode),
                 realTimeChat: normalizePacingMode(this.pacingMode) === 'realtime',
                 realTimeMaxWaitMs: maxWaitMs,

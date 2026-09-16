@@ -26,23 +26,25 @@
         historyTurns: 4
     };
 
+    /**
+     * How verbosely the prompt is written, per band. A band no longer carries a token
+     * ceiling — see resolveInputPack. Density and budget were one number, and that is
+     * what made a 6000 setting behave exactly like 8000.
+     */
     const INPUT_PACKS = {
         tight: {
-            tokens: 2500,
             caps: {
                 outfitLabels: 12, envNames: 6, marks: 12, assets: 8, slang: 12,
                 detailChars: 140, notes: 180, historyClip: 120, historyTurns: 4
             }
         },
         medium: {
-            tokens: 4500,
             caps: {
                 outfitLabels: 24, envNames: 8, marks: 16, assets: 12, slang: 20,
                 detailChars: 240, notes: 280, historyClip: 220, historyTurns: 4
             }
         },
         full: {
-            tokens: 8000,
             caps: { ...CAPS, historyClip: 400, historyTurns: 4 }
         },
         unlimited: {
@@ -58,14 +60,26 @@
         return Math.ceil(String(text || '').length / 4);
     }
 
+    /**
+     * Pick the wording density for a budget, and carry the budget through untouched.
+     *
+     * The ceiling used to come from the band rather than from the setting, so every
+     * value inside a band was silently rounded to that band's figure. "Max thinking
+     * prompt per turn" now means what it says.
+     *
+     * Medium runs all the way to 6000 deliberately. Full-density wording costs ~7k
+     * tokens for a bare character and more once an EDF is loaded, so promoting 6000
+     * to full would spend the entire raise on prompt prose and leave *less* room for
+     * history than 4500 did — the opposite of the point.
+     */
     function resolveInputPack(raw) {
         const n = raw != null ? Number(raw) : Number(global.EngineState?.maxThinkingInputTokens);
         if (!Number.isFinite(n) || n <= 0) {
             return { density: 'unlimited', ...INPUT_PACKS.unlimited };
         }
-        if (n <= 2500) return { density: 'tight', ...INPUT_PACKS.tight };
-        if (n <= 4500) return { density: 'medium', ...INPUT_PACKS.medium };
-        return { density: 'full', ...INPUT_PACKS.full };
+        if (n <= 2500) return { density: 'tight', ...INPUT_PACKS.tight, tokens: n };
+        if (n <= 6000) return { density: 'medium', ...INPUT_PACKS.medium, tokens: n };
+        return { density: 'full', ...INPUT_PACKS.full, tokens: n };
     }
 
     function packCaps() {

@@ -125,9 +125,26 @@
         }
 
         if (/timeout|timed out|abort/i.test(msg) && err.code !== 'CANCELLED') {
+            // One branch used to serve both, and its copy assumed an image: a thinking
+            // stall told the operator to "Retry face / Retry Last Image" on a turn
+            // where no image was ever requested and no text had appeared. The provider
+            // layer tags its own deadline; a proxy-side timeout still names the call it
+            // was making ("kie thinking (…)"), which is enough to tell them apart.
+            const thinking = err.code === 'THINKING_TIMEOUT' || /thinking/i.test(msg);
+            if (thinking) {
+                const modelHint = err.modelId ? ` (model: ${err.modelId})` : '';
+                return {
+                    toast: 'Thinking model never answered — retry, or switch model in Settings.',
+                    chat: 'The thinking model did not answer in time' + modelHint + '. She never wrote '
+                        + 'anything and no photo was attempted, so there is nothing half-finished to '
+                        + 'recover — send the message again. If it keeps stalling, switch the thinking '
+                        + 'model in Settings.',
+                    action: 'retry'
+                };
+            }
             return {
-                toast: 'Request timed out — try again or use Retry face / Retry Last Image.',
-                chat: 'The request timed out (image models can take several minutes). Retry, cancel, or use Retry face / Retry Last Image if text already appeared.',
+                toast: 'Image timed out — retry, or use Retry Last Image.',
+                chat: 'Image generation timed out (image models can take several minutes). Retry, cancel, or use Retry face / Retry Last Image if her text already appeared.',
                 action: 'retry'
             };
         }

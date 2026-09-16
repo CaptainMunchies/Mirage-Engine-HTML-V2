@@ -959,14 +959,18 @@
                     <div class="field field-last">
                         <label for="selectMaxThinkingInput">Max thinking prompt per turn</label>
                         <select id="selectMaxThinkingInput">
-                            <option value="2500">2.5k — tight (same prompt, fewer words)</option>
-                            <option value="4500" selected>4.5k — default</option>
+                            <option value="2500">2.5k — tight (same prompt, fewest words)</option>
+                            <option value="4500">4.5k — tight on history</option>
+                            <option value="6000" selected>6k — default</option>
                             <option value="8000">8k — full wording</option>
+                            <option value="12000">12k — full wording, long history</option>
                             <option value="0">Unlimited (no compression)</option>
                         </select>
                         <p class="field-hint">
                             Ceiling on the <em>input</em> we send the thinking model (system + LIVE STATE + history).
                             Lower presets keep every instruction — they just use fewer words. Photos are billed separately.
+                            The instruction itself is never trimmed, so a ceiling below it buys nothing: at 4.5k a
+                            detailed character leaves no room for conversation history at all.
                         </p>
                     </div>
                 </section>

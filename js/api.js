@@ -8,6 +8,19 @@
 
     const BASE = 'https://generativelanguage.googleapis.com/v1beta';
     const IMAGE_TEST_TIMEOUT_MS = 300000; // 5 min — Nano Banana Pro can be slow on first run
+    /**
+     * Client-side ceiling on a single thinking call.
+     *
+     * Deliberately under the proxy's own 180s read timeout (mirage_server.py, the
+     * kie chat route) so the browser loses patience first. Whoever gives up first
+     * writes the error message, and only this side knows it was thinking that
+     * stalled rather than an image — when the proxy won the race the operator got
+     * image advice ("Retry face / Retry Last Image") for a turn where no image was
+     * ever attempted.
+     *
+     * Normal thinking lands in seconds. 90s is a hang, not a slow turn.
+     */
+    const THINKING_TIMEOUT_MS = 90000;
     const IMAGE_ASPECT_RATIO = '9:16';
     const IMAGE_OUTPUT_SIZE = '1K';
     const PROXY_PORT = 8080; // must match PORT in mirage_server.py
@@ -588,47 +601,79 @@
             || 'google'
         );
 
-        return withSpendLog({
-            kind: 'thinking',
-            action: 'Thinking',
-            model,
-            provider: resolvedProvider,
-            apiKey,
-            run: () => {
-                if (resolvedProvider === 'kie') {
-                    return MirageKieAPI.thinkingGenerate({
-                        apiKey,
-                        model,
-                        systemInstruction,
-                        userParts,
-                        jsonMode,
-                        signal
-                    });
-                }
+        // Own the deadline here rather than inheriting the proxy's. `timedOut` keeps
+        // this distinguishable from the operator hitting Cancel, which aborts the
+        // same fetch and must stay silent.
+        const deadline = new AbortController();
+        const timer = setTimeout(() => deadline.abort(), THINKING_TIMEOUT_MS);
+        let callSignal = deadline.signal;
+        if (signal) {
+            const linked = new AbortController();
+            const abortLinked = () => linked.abort();
+            signal.addEventListener('abort', abortLinked, { once: true });
+            deadline.signal.addEventListener('abort', abortLinked, { once: true });
+            callSignal = linked.signal;
+        }
+        const timedOut = () => deadline.signal.aborted && !signal?.aborted;
 
-                const resolved = MirageModels.resolveThinkingModel(model, 'google');
+        try {
+            return await withSpendLog({
+                kind: 'thinking',
+                action: 'Thinking',
+                model,
+                provider: resolvedProvider,
+                apiKey,
+                run: () => {
+                    if (resolvedProvider === 'kie') {
+                        return MirageKieAPI.thinkingGenerate({
+                            apiKey,
+                            model,
+                            systemInstruction,
+                            userParts,
+                            jsonMode,
+                            signal: callSignal
+                        });
+                    }
 
-                if (MirageModels.usesGenerateContent(resolved, 'google')) {
-                    return thinkingViaGenerateContent({
+                    const resolved = MirageModels.resolveThinkingModel(model, 'google');
+
+                    if (MirageModels.usesGenerateContent(resolved, 'google')) {
+                        return thinkingViaGenerateContent({
+                            apiKey,
+                            model: resolved,
+                            systemInstruction,
+                            userParts,
+                            jsonMode,
+                            signal: callSignal
+                        });
+                    }
+
+                    return thinkingViaInteractions({
                         apiKey,
                         model: resolved,
                         systemInstruction,
                         userParts,
                         jsonMode,
-                        signal
+                        signal: callSignal
                     });
                 }
-
-                return thinkingViaInteractions({
-                    apiKey,
-                    model: resolved,
-                    systemInstruction,
-                    userParts,
-                    jsonMode,
-                    signal
-                });
+            });
+        } catch (err) {
+            // An abort we caused reads as a cancelled turn on every provider path, so
+            // it would otherwise fail silently. Claim it and say what stalled.
+            if (timedOut()) {
+                const e = new Error(
+                    `Thinking timed out after ${Math.round(THINKING_TIMEOUT_MS / 1000)}s — `
+                    + `the model never answered${model ? ` (${model})` : ''}.`
+                );
+                e.code = 'THINKING_TIMEOUT';
+                e.modelId = model || null;
+                throw e;
             }
-        });
+            throw err;
+        } finally {
+            clearTimeout(timer);
+        }
     }
 
     async function imageGenerate({
@@ -801,6 +846,7 @@
     global.MirageAPI = {
         BASE,
         IMAGE_TEST_TIMEOUT_MS,
+        THINKING_TIMEOUT_MS,
         IMAGE_ASPECT_RATIO,
         IMAGE_OUTPUT_SIZE,
         thinkingGenerate,

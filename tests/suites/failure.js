@@ -330,6 +330,71 @@
         },
 
         {
+            name: 'a thinking timeout is not reported as an image problem',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // The failure that motivated this: the thinking model stalled, the
+                // proxy cut it off, and the operator was told to use "Retry face /
+                // Retry Last Image" on a turn where no image was ever requested.
+                const W = ctx.win;
+
+                const tagged = new Error('Thinking timed out after 90s — the model never answered.');
+                tagged.code = 'THINKING_TIMEOUT';
+                tagged.modelId = 'gemini-3.7-flash';
+                const seen = W.MirageErrors.describeTurnError(tagged);
+                t.match(seen.chat, /thinking model/i, 'the message did not name the thinking model');
+                t.noMatch(seen.chat, /retry last image/i, 'thinking advice offered an image retry');
+                t.noMatch(seen.toast, /retry face/i, 'the toast offered an image retry');
+
+                // The proxy can still win the race on a path we do not time out
+                // ourselves; its message names the call, and that has to be enough.
+                const fromProxy = new Error('kie thinking (Gemini 3.7 Flash): Proxy error: The read operation timed out');
+                const relayed = W.MirageErrors.describeTurnError(fromProxy);
+                t.noMatch(relayed.chat, /retry last image/i, 'a proxy-side thinking timeout got image advice');
+
+                // …and a real image timeout must keep the image advice.
+                const image = new Error('Image model (Nano Banana 2 Lite): timed out after 5 minutes');
+                const shot = W.MirageErrors.describeTurnError(image);
+                t.match(shot.chat, /retry last image/i, 'an image timeout lost its image advice');
+            }
+        },
+
+        {
+            name: 'the default input budget leaves room for conversation history',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // A budget under the system instruction is not a budget: fitInputBudget
+                // never trims the instruction, so the whole cap comes out of history and
+                // the conversation silently goes to zero. 4500 did exactly that.
+                await freshCharacter(ctx);
+                const W = ctx.win;
+                const P = W.MiragePrompt;
+
+                const budget = Number(W.EngineState.maxThinkingInputTokens);
+                t.ok(budget > 0, 'the default budget should not be unlimited');
+
+                // The setting is the ceiling. It used to be rounded to its density
+                // band, which made 6000 behave identically to 8000.
+                t.equal(P.resolveInputPack(6000).tokens, 6000, 'the budget was rounded to a band');
+                t.equal(P.resolveInputPack(12000).tokens, 12000, 'the budget was rounded to a band');
+
+                const sys = P.buildThinkingSystemInstruction('turn', W.EngineState.getRuntimeContext());
+                const sysTokens = P.estimateTokens(sys);
+                t.ok(
+                    sysTokens < budget,
+                    `the system instruction (~${sysTokens} tok) does not fit the default budget (${budget})`
+                );
+
+                // Not just "fits" — fits with usable room left over, or history is
+                // still the thing that gets sacrificed.
+                t.ok(
+                    budget - sysTokens >= 500,
+                    `only ~${budget - sysTokens} tok left for history after the system instruction`
+                );
+            }
+        },
+
+        {
             name: 'an image failure keeps her text — the turn is not lost',
             group: 'provider and network',
             async run(ctx, t) {
