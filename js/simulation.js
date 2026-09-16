@@ -29,20 +29,6 @@
     }
 
     /** Soft-trim a bubble at a sentence/word boundary so the length cap doesn't mid-word chop. */
-    function clampReplyChars(text, limit) {
-        const s = String(text || '').trim();
-        const cap = Number(limit);
-        if (!Number.isFinite(cap) || cap <= 0 || s.length <= cap) return s;
-        const cut = s.slice(0, cap);
-        const sentence = cut.match(/^[\s\S]*[.!?…](?:["”']|\s|$)/);
-        if (sentence && sentence[0].trim().length >= Math.min(80, Math.floor(cap * 0.45))) {
-            return sentence[0].trim();
-        }
-        const sp = cut.lastIndexOf(' ');
-        if (sp > cap * 0.5) return cut.slice(0, sp).trim();
-        return cut.trim();
-    }
-
     /**
      * saveActiveChat is async, so `try { save() } catch {}` cannot catch a quota
      * failure — it becomes an unhandled rejection and the operator is told nothing
@@ -4564,17 +4550,14 @@
                     parsed.delivery.style = 'normal';
                 }
             }
-            const replyCap = Number(S()?.maxReplyChars);
-            if (Number.isFinite(replyCap) && replyCap > 0) {
-                characterText = clampReplyChars(characterText, replyCap);
-                parsed.characterResponse = characterText;
-                if (parsed.delivery && parsed.delivery.secondMessage) {
-                    parsed.delivery.secondMessage = clampReplyChars(
-                        parsed.delivery.secondMessage,
-                        replyCap
-                    );
-                }
-            }
+            // "Max characters per message" is guidance to the thinking model, and
+            // nothing else. There used to be a trim here as well, which could only
+            // ever run *after* the reply was written and paid for — so the one thing
+            // it could do with an overshoot was delete the tail of a sentence the
+            // operator had already been charged for. A model cannot count its own
+            // characters while generating, so the number is always an estimate; an
+            // estimate that lands a little long is a better read than a clean
+            // sentence with its ending cut off.
 
             // Chat switched / new chat started while thinking — drop this result
             if (!isTurnBoundaryValid(boundary)) return;

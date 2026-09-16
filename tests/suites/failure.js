@@ -860,19 +860,35 @@
         },
 
         {
-            name: 'a reply over the character cap is trimmed cleanly',
+            name: 'the character cap guides her, it never cuts her',
             group: 'rules',
             async run(ctx, t) {
+                // The cap is prompt guidance and nothing else. A trim here could only
+                // ever run after the reply was written and paid for, so the one thing
+                // it could do with an overshoot was delete the end of a sentence the
+                // operator had already been charged for.
                 await ctx.withConfig({ maxReplyChars: 120 });
                 await ctx.seedCharacter();
+                const W = ctx.win;
+
+                // The guidance half still has to be in the prompt, or nothing is
+                // steering the length at all.
+                const sys = W.MiragePrompt.buildThinkingSystemInstruction(
+                    'turn', W.EngineState.getRuntimeContext()
+                );
+                t.match(sys, /LENGTH CAP/, 'the length instruction is missing from the prompt');
+                t.match(sys, /120/, 'the prompt did not tell the model the operator’s number');
+
                 ctx.stubThinking(ctx.turnPayload({
                     characterResponse: 'She said something. '.repeat(40)
                 }), { times: 1 });
                 await ctx.runTurn('talk to me');
+
                 const v = ctx.visible();
-                t.ok(v.lastAi && v.lastAi.length <= 120,
-                    `reply was ${v.lastAi?.length} chars against a 120 cap`);
-                t.noMatch(v.lastAi, /\s$/, 'the trim left trailing whitespace');
+                t.ok(v.lastAi && v.lastAi.length > 120,
+                    `an over-long reply was truncated to ${v.lastAi?.length} chars`);
+                t.match(v.lastAi, /She said something\.\s*$/,
+                    'the tail of the reply was cut off');
             }
         },
 
