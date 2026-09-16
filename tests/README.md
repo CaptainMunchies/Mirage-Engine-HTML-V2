@@ -65,7 +65,7 @@ Layer 3 test does not fail the run.
 What a healthy run ends with:
 
 ```
-TOTAL: 48 passed, 3 known-red  (51 total)
+TOTAL: 53 passed, 3 known-red  (56 total)
 ```
 
 ### One definition, two runners
@@ -154,7 +154,7 @@ Currently red:
 
 | Test | Why | Owner |
 |------|-----|-------|
-| valid JSON with no `characterResponse` is a failed turn | `parsed.characterResponse \|\| parsed.response \|\| '…'` degrades a wrong payload to a silent ellipsis | Phase 3 |
+| a refresh mid-image finishes the turn it already paid for | `resumePendingTurnIfAny` is written, exported, and called by nothing — the recovery was built and never wired up (N22). Fixing it generates an image on page load, so it needs an operator decision | Phase 3 |
 | the model cannot change mode | `applyTracking` ignores `tracking.mode` as client-owned, then `simulation.js:4374` honours it anyway (N19) | Phase 3 |
 | a promise survives ledger overflow | the ledger evicts by recency only, so trivia pushes out an open promise (the callback picker ranks by kind; eviction does not) | Phase 6 |
 

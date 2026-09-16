@@ -4201,7 +4201,32 @@
                 if (!err || signal?.aborted) return false;
                 if (isRefusalThinkingFail(err)) return true;
                 if (err.code === 'JSON_PARSE' || err.code === 'EMPTY_THINKING') return true;
+                if (err.code === 'CONTRACT') return true;
                 return /empty response/i.test(String(err.message || ''));
+            }
+
+            /**
+             * Retry a contract miss by naming it. A bare "try again" gets the same
+             * reply back; telling the model which field was missing is what makes
+             * the second pass different from the first.
+             */
+            function prepareContractRetry(err) {
+                const note = MiragePrompt.contractRetryNote(err.problems || []);
+                let sys = MiragePrompt.buildThinkingSystemInstruction(task, ctx);
+                let userText = assembleThinkingUserText(text, historyText, `${note}\n`);
+                if (typeof MiragePrompt.fitInputBudget === 'function') {
+                    const fitted = MiragePrompt.fitInputBudget(sys, userText, inputPack?.tokens);
+                    sys = fitted.systemInstruction;
+                    userText = fitted.userText;
+                    reportInputBudget(fitted);
+                }
+                thinkCall.systemInstruction = sys;
+                thinkCall.userParts = [{ text: userText }];
+                appendDebugDecision({
+                    kind: 'notice',
+                    summary: 'Reply broke the turn contract — retrying with the fields named',
+                    detail: { problems: err.problems || [], preview: err.rawPreview || null }
+                });
             }
 
             function prepareSoftenedThinkingRetry(err) {
@@ -4241,7 +4266,23 @@
 
             async function generateAndParseThinking() {
                 const rawText = await MirageAPI.thinkingGenerate(thinkCall);
-                return MirageAPI.parseJsonResponse(rawText);
+                const payload = MirageAPI.parseJsonResponse(rawText);
+
+                // Parsing is not the same as obeying. A reply can be perfect JSON
+                // and still have no characterResponse, which used to fall through
+                // to `|| '…'` and commit a silent ellipsis as though she had
+                // spoken. Raising here routes it into the retry that already
+                // exists for parse failures — the difference is that this one can
+                // say what was wrong.
+                const check = MiragePrompt.validateTurnReply?.(payload);
+                if (check && !check.ok) {
+                    const err = new Error(`Reply did not follow the turn contract: ${check.problems[0]}`);
+                    err.code = 'CONTRACT';
+                    err.problems = check.problems;
+                    err.rawPreview = String(rawText || '').slice(0, 180);
+                    throw err;
+                }
+                return payload;
             }
 
             logDevTurn('thinking', {
@@ -4272,6 +4313,9 @@
                 if (isRefusalThinkingFail(firstErr)) {
                     prepareSoftenedThinkingRetry(firstErr);
                     MirageUI.setSimGenerating(true, { phase: 'thinking', label: 'Retrying with milder wording…' });
+                } else if (firstErr.code === 'CONTRACT') {
+                    prepareContractRetry(firstErr);
+                    MirageUI.setSimGenerating(true, { phase: 'thinking', label: 'Reply was incomplete — asking again…' });
                 } else {
                     appendDebugDecision({
                         kind: 'notice',
@@ -4298,7 +4342,12 @@
                     });
                 }
             }
-            characterText = parsed.characterResponse || parsed.response || '…';
+            // validateTurnReply has already guaranteed a non-empty string here, so
+            // the old `|| '…'` is unreachable and deliberately gone: it was the
+            // thing that turned a broken reply into a bubble that looked like she
+            // had nothing to say. If this ever comes back empty it is a bug, and a
+            // visibly empty turn is the correct way to find out.
+            characterText = parsed.characterResponse || parsed.response;
             if (parsed) applyDirectorShotLocks(parsed, S().session, cmd);
             if (mustDeliver && parsed?.delivery && typeof parsed.delivery === 'object') {
                 const st = String(parsed.delivery.style || '').toLowerCase();

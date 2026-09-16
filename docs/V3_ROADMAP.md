@@ -289,23 +289,27 @@ tells you something; a flaky one teaches you to ignore the suite.
 
 Small, high-leverage, and it protects everything built afterwards.
 
-**One reply format.** The structure the AI must follow is currently written out twice — a long
-version and a short version for lower token budgets — and they have already drifted. Define it once;
-generate both renderings from that single definition. Neither can drift again.
+**One reply format.** ✅ **Done.** One `TURN_CONTRACT` object plus one `CONTRACT_NOTES` list;
+all three densities are generated from them. The drift was real — the condensed copy had lost the
+`tracking.mood` note entirely, so medium/tight turns were told less about mood than full ones. Every
+note now carries both a full and a brief form rather than being optional per density, which is the
+structural reason one cannot vanish again. A smoke test walks the contract and asserts every field
+and note reaches every rendering.
 
-**Check every reply.** Nothing currently verifies the AI filled in what it was asked for. A reply
-missing `characterResponse` silently becomes "…". Validate each response; on a missing or malformed
-field, retry with a specific note naming what was wrong — reusing the retry path that already exists.
+**Check every reply.** ✅ **Done.** `validateTurnReply` checks the fields the client cannot invent a
+default for; a miss raises `code: 'CONTRACT'` into the retry path that already existed for parse
+failures, carrying a note that names the offending field so the second pass differs from the first.
+One miss recovers silently; a persistent one fails visibly and commits nothing. The `|| '…'`
+fallback is gone — it was the thing that turned a broken reply into a bubble that looked like she
+had nothing to say.
 
 **Types on the contract.** This is where the gradual typing starts, because the reply format is the
 highest-traffic and most breakable surface in the app, and the place an agent is most likely to
 misspell something invisibly. Other files get typed only as they're touched.
 
-**Clean JSON in the example (B9).** The schema shown to the model contains `//` comment lines
-(`mirage-prompt.js:574-576`, `:710`) inside a structure introduced by *"Return ONLY valid JSON"*.
-Demonstrating comment syntax invites the model to echo it, which `JSON.parse` rejects and
-`extractJsonPayload`'s brace-matching won't rescue. The generated rendering emits clean JSON with the
-notes outside the code block.
+**Clean JSON in the example (B9).** ✅ **Done.** The notes moved outside the JSON under a FIELD
+NOTES heading; all three renderings parse. Verified by injecting a `//` back in and watching the
+test fail on both the comment and the unparseable JSON.
 
 **AI reports intent.** Delete the ~150 lines of Hebrew/English keyword matching that guesses whether
 the user asked for an outfit change, a move, a mirror shot, or a close-up. Add an `interpretation`

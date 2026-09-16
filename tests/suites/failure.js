@@ -59,21 +59,65 @@
         },
 
         {
-            name: 'valid JSON with no characterResponse is a failed turn, not a "…" bubble',
+            name: 'a reply with no characterResponse recovers on the retry',
             group: 'bad model output',
-            expectedRed: 'simulation.js does `parsed.characterResponse || parsed.response || "…"` — '
-                + 'valid-but-wrong JSON degrades to a silent ellipsis. Contract validation is Phase 3.',
+            async run(ctx, t) {
+                // Valid JSON that forgot the one field the turn is *for*. It used
+                // to fall through to `|| '…'` and commit a silent ellipsis as
+                // though she had spoken; it now fails the contract check and takes
+                // the same retry a parse failure takes. One miss should cost the
+                // operator nothing.
+                await freshCharacter(ctx);
+                const bad = JSON.stringify({
+                    tracking: { arousal: 40, mode: 'DM', persona: 'Standard' },
+                    delivery: { style: 'normal' }
+                });
+                const good = ctx.turnPayload({ characterResponse: 'RECOVERED' });
+                let n = 0;
+                ctx.win.MirageMockAPI.mockThinkingGenerate = async () => (n++ === 0 ? bad : good);
+
+                await ctx.runTurn('hello');
+                const v = ctx.visible();
+                t.equal(n, 2, 'the contract miss did not trigger a retry');
+                t.equal(v.historyLength, 1, 'the recovered turn did not commit');
+                t.match(v.lastAi, /RECOVERED/, 'no usable reply after the retry');
+                t.notOk(v.lastAi === '…', 'the turn was committed as a "…" reply');
+            }
+        },
+
+        {
+            name: 'a reply that keeps breaking the contract is reported, not committed',
+            group: 'bad model output',
             async run(ctx, t) {
                 await freshCharacter(ctx);
                 ctx.stubThinking(JSON.stringify({
                     tracking: { arousal: 40, mode: 'DM', persona: 'Standard' },
                     delivery: { style: 'normal' }
-                }), { times: 1 });
+                }));   // every call
                 await ctx.runTurn('hello');
                 const v = ctx.visible();
-                t.notOk(v.lastAi === '…', 'the turn was committed to history as a "…" reply');
-                t.match(v.text, /again|retry|didn.t|failed|empty/i,
-                    'the operator was not told anything went wrong');
+                t.equal(v.historyLength, 0, 'a turn with no reply text was committed to history');
+                t.notOk(v.lastAi === '…', 'a bare ellipsis was committed instead of failing');
+                t.match(v.text, /contract|again|retry|didn.t|failed|empty|incomplete/i,
+                    'the operator was not told the turn failed');
+            }
+        },
+
+        {
+            name: 'a tracking number sent as prose is refused, not coerced',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // NaN from a string used to land as whatever the clamp floor is,
+                // which reads as the model having decided something it never said.
+                await freshCharacter(ctx);
+                const bad = ctx.turnPayload({ tracking: { arousal: 'very high' } });
+                const good = ctx.turnPayload({ characterResponse: 'RECOVERED' });
+                let n = 0;
+                ctx.win.MirageMockAPI.mockThinkingGenerate = async () => (n++ === 0 ? bad : good);
+
+                await ctx.runTurn('hello');
+                t.equal(n, 2, 'a non-numeric metric was accepted without a retry');
+                t.between(ctx.visible().arousal, 0, 100, 'arousal escaped its range');
             }
         },
 

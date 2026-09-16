@@ -652,6 +652,75 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
     const PHASE2_HEADER = 'PHASE 2 TASK: ACTIVE ROLEPLAY TURN\n'
         + 'You are the character described below. Stay in character.';
 
+    /**
+     * Does a parsed reply actually honour the contract above?
+     *
+     * Nothing used to ask. A reply that parsed as JSON but forgot
+     * `characterResponse` became `parsed.characterResponse || parsed.response ||
+     * '…'` — a silent ellipsis bubble committed to history as though she had
+     * spoken. Only *parse* failures reached the retry path, so the one failure
+     * that looks like a real message never did.
+     *
+     * Deliberately narrow. It checks the fields the client cannot invent a sane
+     * default for, and the types it would otherwise coerce into nonsense. It does
+     * not police prose quality or require optional blocks — a turn with no
+     * imageDirective is a text turn, not a broken one.
+     *
+     * @returns {{ok: boolean, problems: string[]}} problems are phrased for the
+     *          model: they are pasted into the retry so it knows what to fix.
+     */
+    function validateTurnReply(parsed) {
+        const problems = [];
+
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return { ok: false, problems: ['The reply must be a single JSON object.'] };
+        }
+
+        const reply = parsed.characterResponse ?? parsed.response;
+        if (typeof reply !== 'string' || !reply.trim()) {
+            problems.push('"characterResponse" is missing or empty — it must be her in-character message as a non-empty string.');
+        }
+
+        if (parsed.tracking == null || typeof parsed.tracking !== 'object' || Array.isArray(parsed.tracking)) {
+            problems.push('"tracking" is missing — return the tracking object with the fields from the schema.');
+        } else {
+            // Numbers the client clamps. A string here silently becomes NaN and
+            // then whatever the clamp floor is, which reads as the model having
+            // decided something it never said.
+            [['arousal', 0, 100], ['tease', 0, 3], ['awareness', 0, 100],
+                ['engagement', 0, 100], ['moodIntensity', 0, 3]].forEach(([key]) => {
+                const v = parsed.tracking[key];
+                if (v === undefined || v === null) return;
+                if (!Number.isFinite(Number(v))) {
+                    problems.push(`"tracking.${key}" must be a number, not ${JSON.stringify(v)}.`);
+                }
+            });
+        }
+
+        if (parsed.delivery != null
+            && (typeof parsed.delivery !== 'object' || Array.isArray(parsed.delivery))) {
+            problems.push('"delivery" must be an object when present.');
+        }
+
+        if (parsed.memoryUpdates != null && !Array.isArray(parsed.memoryUpdates)) {
+            problems.push('"memoryUpdates" must be an array (or omitted).');
+        }
+
+        if (parsed.imageDirective != null
+            && (typeof parsed.imageDirective !== 'object' || Array.isArray(parsed.imageDirective))) {
+            problems.push('"imageDirective" must be an object when present.');
+        }
+
+        return { ok: problems.length === 0, problems };
+    }
+
+    /** The note a retry carries so the model is told what to fix, not just "again". */
+    function contractRetryNote(problems) {
+        return 'CLIENT NOTE: Your last reply parsed as JSON but did not follow the contract:\n'
+            + problems.map(p => `- ${p}`).join('\n')
+            + '\nReturn the same turn again as valid JSON with those fixed. Nothing else changes.';
+    }
+
     const PHASE2_RULES_FULL = `
 RULES:
 - PERSONA FIRST: characterResponse and imageDirective MUST embody the PERSONA LOCK from LIVE STATE
@@ -3880,6 +3949,8 @@ FACE RECOVERY MODE (active — overrides variance):
         TURN_CONTRACT,
         CONTRACT_NOTES,
         renderTurnContract,
+        validateTurnReply,
+        contractRetryNote,
         phase2For,
         buildThinkingSystemInstruction,
         fitInputBudget,
