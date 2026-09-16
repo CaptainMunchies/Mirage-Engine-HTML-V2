@@ -330,6 +330,60 @@
         },
 
         {
+            name: 'a stopped image is not reported as a timeout',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // The kie image path does not wrap its aborts, so the browser's own
+                // AbortError reaches the classifier. Its text is browser-specific and
+                // both spellings contain "abort", which the timeout regex claimed —
+                // so a cancelled or superseded request was reported to the operator
+                // as a five-minute stall that never happened.
+                const W = ctx.win;
+                for (const raw of ['The operation was aborted.', 'The user aborted a request.', 'Cancelled']) {
+                    const reason = W.MirageAPI.classifyImageError(new Error(raw));
+                    const message = W.MirageAPI.imageFailureMessage(reason, raw);
+                    t.equal(reason, 'cancelled', `"${raw}" was not classified as a stop`);
+                    t.noMatch(message.title, /timed out/i, `"${raw}" was reported as a timeout`);
+                }
+            }
+        },
+
+        {
+            name: 'a withheld turn is recorded as fully as a delivered one',
+            group: 'bad model output',
+            async run(ctx, t) {
+                // Being left on read is a delivered outcome, not a skipped turn. It
+                // used to be committed with no debug block and no tracking, so the
+                // troubleshoot report had nothing to diff against and claimed every
+                // setting had changed — on this turn and again on the next one.
+                await freshCharacter(ctx);
+                const W = ctx.win;
+                const S = W.EngineState;
+                ctx.stubThinking(ctx.turnPayload({ characterResponse: 'not sending this' }), { times: 1 });
+
+                // `delivery.style` only biases a weighted roll, so asking the payload
+                // for a withhold cannot force one. Drive the branch at its seam.
+                const realChoreograph = W.MirageImmersion.choreograph;
+                W.MirageImmersion.choreograph = async () => ({ leftOnRead: true });
+                try {
+                    await ctx.runTurn('ok whatever then');
+                } finally {
+                    W.MirageImmersion.choreograph = realChoreograph;
+                }
+
+                const last = S.session.history[S.session.history.length - 1];
+                t.ok(last, 'the withheld turn was not committed to history at all');
+                t.equal(last.ai, '', 'this test needs the turn to actually withhold');
+                t.ok(last.debug && typeof last.debug === 'object',
+                    'a withheld turn carries no settings record');
+                t.ok(last.debug.thinkingModel,
+                    'the withheld turn recorded no thinking model, so the report reads it as a change');
+                t.ok(last.debug.apiProvider,
+                    'the withheld turn recorded no provider');
+            }
+        },
+
+        {
             name: 'a thinking timeout is not reported as an image problem',
             group: 'provider and network',
             async run(ctx, t) {

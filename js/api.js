@@ -279,12 +279,21 @@
         return `${context}: request failed`;
     }
 
-    function wrapFetchError(err, context, { cancelled = false } = {}) {
-        if (err.name === 'AbortError' || cancelled) {
+    /**
+     * `timedOut` exists because an abort is not self-describing. A deadline we set
+     * and a Cancel the operator pressed both arrive as the same `AbortError`, and
+     * treating every one as a cancel silently ate the caller's message: the 5-minute
+     * image timeout built its "try Nano Banana 2 Lite" copy, handed it in as
+     * `context`, and got back a bare "Turn cancelled" — so a real timeout ended the
+     * turn as though the operator had abandoned it, with nothing shown at all.
+     */
+    function wrapFetchError(err, context, { cancelled = false, timedOut = false } = {}) {
+        if (!timedOut && (err.name === 'AbortError' || cancelled)) {
             const e = new Error('Turn cancelled');
             e.code = 'CANCELLED';
             return e;
         }
+        if (timedOut) return new Error(context);
         if (err instanceof TypeError && /fetch|network/i.test(err.message)) {
             if (location.protocol === 'file:') {
                 return new Error(`${context}: browser blocked API — use START MIRAGE.bat (not index.html directly)`);
@@ -299,7 +308,14 @@
         if (/safety|blocked|block|filter|policy|harm|refus|not allowed|prohibited|moderation|responsible|violat/i.test(msg)) {
             return 'filtered';
         }
-        if (/timeout|timed out|abort/i.test(msg)) {
+        // Abort is checked before timeout, and separately from it. Lumping the two
+        // together told the operator "Image generation timed out" whenever a request
+        // was stopped — with the browser's own words as the body ("The operation was
+        // aborted."), which reads like a five-minute stall that never happened.
+        if (/abort|cancell?ed/i.test(msg)) {
+            return 'cancelled';
+        }
+        if (/timeout|timed out/i.test(msg)) {
             return 'timeout';
         }
         if (/no image returned|empty|missing image|no image url|no dataurl/i.test(msg)) {
@@ -315,12 +331,14 @@
         const titles = {
             filtered: 'Image blocked by safety filter',
             timeout: 'Image generation timed out',
+            cancelled: 'Image was stopped before it finished',
             empty: 'Image model returned no image',
             failed: 'Image failed to generate'
         };
         const hints = {
             filtered: 'Text still sent. Use Retry Last Image, or switch models in Settings if this keeps happening.',
             timeout: 'Image generation can take several minutes on kie/Google. Retry or switch to a faster model.',
+            cancelled: 'The image request was stopped before it came back — usually a cancel, or a newer turn taking over. Her text is unaffected. Use Retry Last Image if you still want the photo.',
             empty: 'The API completed but no image data came back. Retry the turn.',
             failed: 'Something went wrong during image generation. Retry the last image, or Test Connection in Settings if it keeps failing.'
         };
@@ -399,7 +417,11 @@
                 // `return` here resolved the call *with* an Error object, so the caller
                 // found no image and reported "the API completed but no image data came
                 // back" — discarding the one message that says what actually happened.
-                throw wrapFetchError(err, `${context}: timed out after 5 minutes — Nano Banana can be slow; try Nano Banana 2 Lite for faster tests`);
+                throw wrapFetchError(
+                    err,
+                    `${context}: timed out after 5 minutes — Nano Banana can be slow; try Nano Banana 2 Lite for faster tests`,
+                    { timedOut: true }
+                );
             }
             throw wrapFetchError(err, context);
         } finally {

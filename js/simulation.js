@@ -249,8 +249,24 @@
         updateTurnActionControls();
     }
 
-    function isTurnCancelled(err) {
-        return err?.code === 'CANCELLED' || err?.message === 'Turn cancelled';
+    /**
+     * Did this error come from the operator cancelling, rather than from a failure?
+     *
+     * The coded forms below are ours. A raw `AbortError` straight off `fetch` is not:
+     * it carries no Mirage code, and its text is browser-specific — Firefox says
+     * "The operation was aborted.", Chrome "The user aborted a request." The kie
+     * image path does not wrap its aborts, so neither form matched and a cancelled
+     * image fell through to `classifyImageError`, whose `/abort/` test reported it
+     * to the operator as **"Image generation timed out"** with a raw DOMException
+     * as the body.
+     *
+     * The signal is what makes this safe to widen: an AbortError counts as a cancel
+     * only when this turn's own signal actually aborted. An abort from anywhere else
+     * stays a failure.
+     */
+    function isTurnCancelled(err, signal) {
+        if (err?.code === 'CANCELLED' || err?.message === 'Turn cancelled') return true;
+        return err?.name === 'AbortError' && !!signal?.aborted;
     }
 
     function throwCancelled() {
@@ -3125,7 +3141,7 @@
             }
             await persistGeneratedImage(imageUrl);
         } catch (imgErr) {
-            if (isTurnCancelled(imgErr)) throw imgErr;
+            if (isTurnCancelled(imgErr, signal)) throw imgErr;
             console.error('[Mirage] image generation error', imgErr);
             imageFailReason = MirageAPI.classifyImageError(imgErr);
             imageFailDetail = String(imgErr?.message || imgErr || '').slice(0, 500);
@@ -3697,7 +3713,11 @@
                     imageSkipped: true,
                     generateImage: false,
                     deliveryStyle: 'reaction',
-                    cmd
+                    cmd,
+                    // Same omission as the withhold branch had: without this the
+                    // reaction turn records a null thinking model and the report
+                    // shows it as a change.
+                    thinkingModelId
                 }),
                 at: chatStampMs()
             });
@@ -4753,11 +4773,30 @@
                         ? 'ghost'
                         : 'left_on_read');
                 if (!internal) {
+                    // A withhold is a delivered outcome, not a skipped turn, so it
+                    // gets the same record every other outcome gets. Without the
+                    // debug block the troubleshoot report has nothing to diff
+                    // against and prints *every* setting as changed — in both
+                    // directions, since the next turn diffs back against this
+                    // empty one. Mode was hardcoded DM, so a withhold during a
+                    // Story was filed as a DM.
                     S().session.history.push({
                         user: historyUserLine(false, false, text),
                         ai: '',
+                        tracking: parsed?.tracking,
+                        debug: buildTurnDebug({
+                            parsed,
+                            cardMode,
+                            internal,
+                            storyLaunch,
+                            imageSkipped: true,
+                            generateImage: false,
+                            deliveryStyle: kind,
+                            cmd,
+                            thinkingModelId
+                        }),
                         at: chatStampMs(),
-                        mode: 'DM'
+                        mode: (storyLaunch || cardMode === 'STORY') ? 'STORY' : 'DM'
                     });
                     saveChatQuietly(S());
                 }
@@ -4770,7 +4809,7 @@
                     input: text,
                     withheld: true,
                     withheldStyle: kind,
-                    mode: 'DM',
+                    mode: (storyLaunch || cardMode === 'STORY') ? 'STORY' : 'DM',
                     style: plan?.style || kind,
                     outfit: S().session.outfit,
                     outfitSource: S().session.outfitSource || null,
@@ -4801,7 +4840,7 @@
             if (err && thinkingModelId && !err.modelId) {
                 err.modelId = thinkingModelId;
             }
-            if (isTurnCancelled(err)) {
+            if (isTurnCancelled(err, signal)) {
                 MirageImmersion?.cancelDelivery?.();
                 // Don't clear a pending left-on-read that we just armed in this turn
                 if (!heldLeftOnRead) MirageImmersion?.clearPendingDelivery?.();
