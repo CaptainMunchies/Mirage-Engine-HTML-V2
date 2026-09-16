@@ -889,6 +889,9 @@
         extractInteractionText,
         partsToInteractionInput,
         classifyImageError,
+        // Exported for the suite: the abort/timeout distinction is a pure function
+        // and worth pinning directly, rather than through a fetch that has to hang.
+        wrapFetchError,
         imageFailureMessage
     };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -414,6 +414,58 @@
         },
 
         {
+            name: 'the browser gives up on thinking before the proxy does',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // The whole reason the client owns a thinking deadline is to win the
+                // race against the proxy's own read timeout: whoever gives up first
+                // writes the error, and only this side knows it was thinking that
+                // stalled rather than an image. Raise this constant past the proxy's
+                // and the bug comes straight back with every other test still green.
+                //
+                // The suite runs against the real mirage_server.py, so read the number
+                // out of the source instead of copying it here and letting the two
+                // drift.
+                const W = ctx.win;
+                const src = await (await W.fetch('/mirage_server.py')).text();
+                const m = src.match(/_kie_chat\b[\s\S]*?_forward\(req,\s*timeout=(\d+)\)/);
+                t.ok(m, 'could not find the kie chat route timeout in mirage_server.py');
+                const proxyMs = Number(m[1]) * 1000;
+
+                t.ok(W.MirageAPI.THINKING_TIMEOUT_MS > 0, 'the thinking deadline is disabled');
+                t.ok(W.MirageAPI.THINKING_TIMEOUT_MS < proxyMs,
+                    `the thinking deadline (${W.MirageAPI.THINKING_TIMEOUT_MS}ms) is not under `
+                    + `the proxy's (${proxyMs}ms), so the proxy writes the error again`);
+            }
+        },
+
+        {
+            name: 'a timeout keeps its message instead of becoming a cancel',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // A deadline we set and a Cancel the operator pressed arrive as the
+                // same AbortError. Treating every one as a cancel silently ate the
+                // caller's message: the 5-minute image timeout built its copy, handed
+                // it in as `context`, and got back a bare "Turn cancelled" — so a real
+                // timeout ended the turn with nothing shown at all.
+                const W = ctx.win;
+                const abortErr = () => Object.assign(
+                    new Error('The operation was aborted.'), { name: 'AbortError' }
+                );
+
+                const cancelled = W.MirageAPI.wrapFetchError(abortErr(), 'Image model (X)');
+                t.equal(cancelled.code, 'CANCELLED', 'a plain abort stopped reading as a cancel');
+
+                const timedOut = W.MirageAPI.wrapFetchError(
+                    abortErr(), 'Image model (X): timed out after 5 minutes', { timedOut: true }
+                );
+                t.notOk(timedOut.code, 'a timeout was still tagged as a cancelled turn');
+                t.match(timedOut.message, /timed out after 5 minutes/,
+                    'the timeout message was discarded');
+            }
+        },
+
+        {
             name: 'the default input budget leaves room for conversation history',
             group: 'provider and network',
             async run(ctx, t) {
@@ -431,6 +483,15 @@
                 // band, which made 6000 behave identically to 8000.
                 t.equal(P.resolveInputPack(6000).tokens, 6000, 'the budget was rounded to a band');
                 t.equal(P.resolveInputPack(12000).tokens, 12000, 'the budget was rounded to a band');
+
+                // The band boundary is the load-bearing half of that change. Full
+                // wording costs ~7k tokens on its own, so promoting the default to
+                // full would spend the whole raise on prompt prose and leave less
+                // room for history than 4500 did.
+                t.equal(P.resolveInputPack(6000).density, 'medium',
+                    'the default budget was promoted to full-density wording');
+                t.equal(P.resolveInputPack(8000).density, 'full',
+                    'the top presets lost full-density wording');
 
                 const sys = P.buildThinkingSystemInstruction('turn', W.EngineState.getRuntimeContext());
                 const sysTokens = P.estimateTokens(sys);
