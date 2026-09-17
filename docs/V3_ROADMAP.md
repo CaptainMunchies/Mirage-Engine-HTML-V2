@@ -371,9 +371,25 @@ The real start of the UI overhaul.
 No shared mutable state; the UI never reaches in. After this, an agent working on the UI *cannot*
 change how she behaves — the worst outcome is that it looks wrong.
 
-**Make it mechanical.** An automated check that fails when UI code reaches through the wall. With an
-AI agent this is not optional — an agent will comply until it gets stuck, then quietly reach through.
-A convention in a document does not survive that; a failing check does.
+**Make it mechanical.** ✅ **Done.** `node tests/run.js boundary`, part of `all`. It reads the
+files declared behind the wall and fails on five kinds of reach-through: engine state, the DOM,
+storage, a sibling engine module, and timers. Each finding names the file, the line, the rule and
+*why*, because "forbidden pattern" tells whoever hits it nothing about what to do.
+
+`BEHIND_THE_WALL` is an allowlist that **grows** — it is not a list of files that happen to be
+clean, it is the set *promised* clean, and adding a file to it is the act of moving that file
+across. Same shape as `tests/tsconfig.json`'s `files`, for the same reason.
+
+Two details it took a broken first draft to get right. Comments have to be stripped before
+scanning, or `chat-view.js`'s own header — which says in prose that it touches no `EngineState`
+and no `document` — fails the check it is describing. And a module's own export line
+(`global.MirageX = {…}`) reads as a sideways reach unless the scanner derives the file's own
+name; the first draft special-cased `MirageChatView` by hand and would have flagged the export of
+every file added after it.
+
+Currently behind the wall: `js/chat-view.js` and `js/errors.js`. Not yet checked is the other
+direction — that engine files stop *building* markup. `simulation.js` alone has 1,046 findings
+against these rules today, and declaring that a violation now is how a check gets switched off.
 
 **The gallery.** One page rendering every UI state from fake data — the full inventory is in §3, and
 it covers thread states, operator states, setup states, and each of those in both modes. Today,

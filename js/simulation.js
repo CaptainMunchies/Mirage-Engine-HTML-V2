@@ -3078,7 +3078,7 @@
             });
             return;
         }
-        const info = MirageErrors.describeTurnError(err);
+        const info = MirageErrors.describeTurnError(err, { provider: S()?.apiProvider });
         if (info.silent) return;
         try {
             const preview = String(err?.rawPreview || info.rawPreview || '').slice(0, 2500);

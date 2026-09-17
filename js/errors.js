@@ -1,5 +1,10 @@
 /**
  * MIRAGE ENGINE v2 — User-facing error classification
+ *
+ * Behind Phase 4's wall: this decides what the operator reads, so it is screen code,
+ * and it takes everything it needs as an argument. It used to read
+ * `EngineState.apiProvider` directly — one line, but the line that made it
+ * unrenderable outside a booted app and put a view on the engine's side of the wall.
  */
 (function (global) {
     'use strict';
@@ -8,9 +13,10 @@
      * The recommended stack is provider-specific: Grok and Seedream exist only in the
      * kie registry, so telling a Google-provider user to pick them sends them looking
      * for models their dropdown does not contain.
+     *
+     * @param {string} [provider] 'kie' or 'google'
      */
-    function goonStackTip() {
-        const provider = (typeof EngineState !== 'undefined' && EngineState.apiProvider) || 'google';
+    function goonStackTip(provider) {
         if (provider === 'kie') {
             return 'Best Goon stack: Settings → Thinking = Grok, Thinking — scene commands = Grok '
                 + '(used by /next scene, /jump, /time pass), Image = Seedream 5.0 Lite or Pro. '
@@ -21,7 +27,7 @@
             + 'kie key and the local proxy), then pick Thinking = Grok and Image = Seedream 5.0.';
     }
 
-    function safetyChatBody(err) {
+    function safetyChatBody(err, provider) {
         const preview = err.rawPreview || err.message
             ? `\n${String(err.rawPreview || err.message).slice(0, 220)}`
             : '';
@@ -34,11 +40,16 @@
             + '. Many models refuse explicit sexual RP (not only Google).'
             + sceneHint
             + ' '
-            + goonStackTip()
+            + goonStackTip(provider)
             + preview;
     }
 
-    function describeTurnError(err) {
+    /**
+     * @param {any} err
+     * @param {{provider?: string}} [opts] the active provider, passed in rather
+     *        than read — see the note at the top of this file.
+     */
+    function describeTurnError(err, { provider = 'google' } = {}) {
         if (!err) {
             return {
                 toast: 'Turn failed.',
@@ -59,7 +70,7 @@
         if (err.code === 'SAFETY') {
             return {
                 toast: 'Blocked by a safety filter — text was not sent.',
-                chat: safetyChatBody(err),
+                chat: safetyChatBody(err, provider),
                 action: null
             };
         }
@@ -74,7 +85,7 @@
                     toast: 'Blocked by a safety filter — text was not sent.',
                     chat: 'Provider safety filter blocked the turn.'
                         + ' '
-                        + goonStackTip()
+                        + goonStackTip(provider)
                         + preview,
                     action: null
                 };
@@ -119,7 +130,7 @@
             return {
                 toast: 'Blocked by a safety filter — text was not sent.',
                 chat: 'Provider safety filter blocked the prompt. '
-                    + goonStackTip(),
+                    + goonStackTip(provider),
                 action: null
             };
         }

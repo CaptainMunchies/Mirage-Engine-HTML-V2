@@ -4,6 +4,7 @@
  *
  *   node run.js smoke              Layer 1 only — the fast one
  *   node run.js types             types only — tsc --noEmit, no browser
+ *   node run.js boundary          the wall only — no UI file may reach through it
  *   node run.js record             Layer 2 — compare against the committed baseline
  *   node run.js record --update    Layer 2 — re-record the baseline (deliberate act)
  *   node run.js failure            Layer 3 — failure and edge cases
@@ -25,6 +26,7 @@ const { printSummary, C } = require('./lib/report');
 
 const LAYERS = {
     types: () => require('./layer-types'),
+    boundary: () => require('./layer-boundary'),
     smoke: () => ({ run: (o) => require('./layer-browser').smoke(o) }),
     record: () => require('./layer2-record'),
     failure: () => ({ run: (o) => require('./layer-browser').failure(o) }),
@@ -33,7 +35,7 @@ const LAYERS = {
     live: () => ({ run: (o) => require('./layer-browser').live(o) })
 };
 
-const IN_ALL = ['types', 'smoke', 'record', 'failure', 'nodeonly'];
+const IN_ALL = ['types', 'boundary', 'smoke', 'record', 'failure', 'nodeonly'];
 
 async function main() {
     const [, , rawLayer = 'all', ...flags] = process.argv;

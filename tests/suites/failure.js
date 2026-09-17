@@ -466,6 +466,30 @@
         },
 
         {
+            name: 'error copy follows the provider it was told about',
+            group: 'provider and network',
+            async run(ctx, t) {
+                // errors.js used to read EngineState.apiProvider itself. Now the caller
+                // passes it, which is what moved this file behind the wall — and a
+                // silent fall back to the default would send a kie user looking for
+                // models their dropdown does not have.
+                const W = ctx.win;
+                const safety = () => Object.assign(new Error('blocked'), { code: 'SAFETY' });
+
+                const kie = W.MirageErrors.describeTurnError(safety(), { provider: 'kie' });
+                t.match(kie.chat, /Settings → Thinking = Grok/, 'the kie tip did not follow the argument');
+
+                const google = W.MirageErrors.describeTurnError(safety(), { provider: 'google' });
+                t.match(google.chat, /Switch Settings → Provider to kie\.ai/, 'the google tip did not follow the argument');
+
+                // Called with nothing, it must still produce usable copy rather than
+                // throwing on a missing options object.
+                const bare = W.MirageErrors.describeTurnError(safety());
+                t.ok(bare && bare.chat, 'describeTurnError threw without options');
+            }
+        },
+
+        {
             name: 'the default input budget leaves room for conversation history',
             group: 'provider and network',
             async run(ctx, t) {
