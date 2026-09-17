@@ -391,9 +391,13 @@ Currently behind the wall: `js/chat-view.js` and `js/errors.js`. Not yet checked
 direction — that engine files stop *building* markup. `simulation.js` alone has 1,046 findings
 against these rules today, and declaring that a violation now is how a check gets switched off.
 
-**The gallery.** ✅ **Thread and operator groups done** (29 states); setup states remain, and
-"both modes" waits on Phase 5, which is what introduces Immersion and Director — there is nothing
-to render twice yet.
+**The gallery.** ✅ **Thread, operator and setup groups done** (38 states). "Both modes" waits on
+Phase 5, which is what introduces Immersion and Director — there is nothing to render twice yet.
+
+Setup covers all six wizard steps, with the media step at 0, 1, 19 and 20 photos — the counts
+where the grid layout and the cap actually get interesting. Those tiles come from a new
+`MirageSetupView.mediaTile`, extracted out of the loop in `setup-media.js` that read the real file
+list and bound a click handler, and now called by both. That is the third file behind the wall.
 
 Opens from Settings → Developer. It writes none of the app's markup: chat entries and phone cards
 come from `MirageChatView`, and the simulation panel, the eleven overlays and the HUD strip are

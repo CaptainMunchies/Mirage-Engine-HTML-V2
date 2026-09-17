@@ -167,6 +167,76 @@
     ];
 
     /**
+     * The setup wizard: the five screens before the simulation, each empty and each
+     * filled. Empty is the state everyone sees and nobody designs; filled is the one
+     * that only exists after you have done the work by hand.
+     *
+     * `panel` clones one wizard step out of index.html. `fills` writes text into the
+     * slots the app fills at runtime, `show` un-hides the cards that only appear once
+     * there is something to put in them, and `photos` renders the media grid through
+     * MirageSetupView — the same function setup-media.js calls.
+     */
+    const SETUP_SCENES = [
+        {
+            id: 'setup-welcome',
+            name: 'Step 0 — Welcome',
+            note: 'The first thing anyone sees.',
+            panel: 'step-0'
+        },
+        {
+            id: 'setup-media-empty',
+            name: 'Step 1 — Media, empty',
+            note: 'Nothing uploaded. The dropzone is the whole screen.',
+            panel: 'step-1'
+        },
+        {
+            id: 'setup-media-1',
+            name: 'Step 1 — 1 photo',
+            note: 'The first upload: the grid appears and Continue wakes up.',
+            panel: 'step-1',
+            photos: 1
+        },
+        {
+            id: 'setup-media-19',
+            name: 'Step 1 — 19 photos',
+            note: 'One under the cap. Grid layout at its busiest before the limit bites.',
+            panel: 'step-1',
+            photos: 19
+        },
+        {
+            id: 'setup-media-20',
+            name: 'Step 1 — 20 photos (at the cap)',
+            note: 'The limit. Worth seeing whether the badge reads as "full" or just as a number.',
+            panel: 'step-1',
+            photos: 20
+        },
+        {
+            id: 'setup-face-empty',
+            name: 'Step 2 — Face lock, none set',
+            note: 'No master face yet — generation refuses to run in this state.',
+            panel: 'step-2'
+        },
+        {
+            id: 'setup-profile-empty',
+            name: 'Step 3 — Profile, empty',
+            note: 'Before the EDF is built.',
+            panel: 'step-3'
+        },
+        {
+            id: 'setup-protocol',
+            name: 'Step 4 — Protocol',
+            note: 'The protocol cards, which the roadmap marks as preserved through the redesign.',
+            panel: 'step-4'
+        },
+        {
+            id: 'setup-standby',
+            name: 'Step 5 — Standby',
+            note: 'The reference content: commands, personas and metrics, before launch.',
+            panel: 'step-5'
+        }
+    ];
+
+    /**
      * The inventory. Each scene is a name, a one-line note on why it is worth
      * looking at, and the entries / cards that make it up.
      */
@@ -635,6 +705,53 @@
         return section;
     }
 
+    /** One wizard step, cloned from index.html and filled in. */
+    async function renderPanel(scene) {
+        const section = sceneShell(scene);
+        const doc = await appDoc();
+        const found = doc && doc.querySelector(`[data-panel="${scene.panel}"]`);
+        const panel = found && found.cloneNode(true);
+        if (!panel) {
+            section.appendChild(el('p', 'gallery-warn',
+                `Could not find [data-panel="${scene.panel}"] in index.html.`));
+            return section;
+        }
+        panel.removeAttribute('hidden');
+
+        const n = Number(scene.photos) || 0;
+        if (n > 0) {
+            const grid = panel.querySelector('#mediaGrid');
+            const container = panel.querySelector('#uploadedMediaContainer');
+            if (container) container.hidden = false;
+            const count = panel.querySelector('#mediaCount');
+            if (count) count.textContent = String(n);
+            const photoBadge = panel.querySelector('#photoCountBadge');
+            if (photoBadge) photoBadge.textContent = `${n}/20 photos`;
+            const poolBadge = panel.querySelector('#photoPoolBadge');
+            if (poolBadge) poolBadge.textContent = `${(n * 1.8).toFixed(1)} MB / 80.0 MB`;
+            const ingest = panel.querySelector('#btnIngestMedia');
+            if (ingest) ingest.disabled = false;
+
+            if (grid) {
+                for (let i = 0; i < n; i++) {
+                    // The same function setup-media.js calls, so a tile here cannot
+                    // drift from a tile there.
+                    const painted = window.MirageSetupView.mediaTile({
+                        name: `adi_${String(i + 1).padStart(2, '0')}.jpg`,
+                        sizeLabel: '1.8 MB',
+                        url: FAKE_PHOTO
+                    });
+                    grid.appendChild(el('div', painted.className, painted.html));
+                }
+            }
+        }
+
+        const frame = el('div', 'gallery-panel-frame');
+        frame.appendChild(panel);
+        section.appendChild(frame);
+        return section;
+    }
+
     function sceneShell(scene) {
         const section = el('section', 'gallery-scene');
         section.id = `scene-${scene.id}`;
@@ -657,7 +774,7 @@
      * list can be walked and counted the same way. An overlay scene that simply
      * lacked the field made the suite's inventory sum throw rather than fail.
      */
-    const ALL_SCENES = [...SCENES, ...OPERATOR_SCENES].map(s => ({
+    const ALL_SCENES = [...SCENES, ...OPERATOR_SCENES, ...SETUP_SCENES].map(s => ({
         entries: [], cards: [], ...s
     }));
 
@@ -665,6 +782,7 @@
         if (scene.fullScreen) return renderFullScreen(scene);
         if (scene.overlayId) return renderOverlay(scene);
         if (scene.hudSet) return renderHudSet(scene);
+        if (scene.panel) return renderPanel(scene);
         return Promise.resolve(renderScene(scene));
     }
 
@@ -673,10 +791,13 @@
         const main = document.getElementById('galleryMain');
         if (!nav || !main) return;
 
-        const operatorFirstId = OPERATOR_SCENES[0] && OPERATOR_SCENES[0].id;
+        const groupStarts = {
+            [OPERATOR_SCENES[0] && OPERATOR_SCENES[0].id]: 'Operator',
+            [SETUP_SCENES[0] && SETUP_SCENES[0].id]: 'Setup'
+        };
         for (const scene of ALL_SCENES) {
-            if (scene.id === operatorFirstId) {
-                nav.appendChild(el('span', 'gallery-nav-group', 'Operator'));
+            if (groupStarts[scene.id]) {
+                nav.appendChild(el('span', 'gallery-nav-group', groupStarts[scene.id]));
             }
             const link = el('a', 'gallery-nav-link', V.escapeHtml(scene.name));
             link.href = `#scene-${scene.id}`;

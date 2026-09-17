@@ -116,6 +116,13 @@ async function run({ origin }) {
                     gotOverlays: document.querySelectorAll('.gallery-overlay-frame > *').length,
                     wantHud: scenes.reduce((n, s) => n + (s.hudSet ? s.hudSet.length : 0), 0),
                     gotHud: document.querySelectorAll('.gallery-hud-row .metrics-hud').length,
+                    wantPanels: scenes.filter(s => s.panel).length,
+                    gotPanels: document.querySelectorAll('.gallery-panel-frame > .panel').length,
+                    // The media grid is rendered through MirageSetupView, the same
+                    // function setup-media.js calls. If that stops producing tiles the
+                    // photo-count scenes go quietly empty.
+                    wantTiles: scenes.reduce((n, s) => n + (Number(s.photos) || 0), 0),
+                    gotTiles: document.querySelectorAll('.gallery-panel-frame .media-item').length,
                     warns: [...document.querySelectorAll('.gallery-warn')].map(n => n.textContent.trim())
                 };
             });
@@ -130,6 +137,8 @@ async function run({ origin }) {
             t.ok(seen.directives >= 5, `the control deck rendered ${seen.directives} directives`);
             t.equal(seen.gotOverlays, seen.wantOverlays, 'an overlay scene rendered nothing');
             t.equal(seen.gotHud, seen.wantHud, 'a HUD variant rendered nothing');
+            t.equal(seen.gotPanels, seen.wantPanels, 'a setup panel rendered nothing');
+            t.equal(seen.gotTiles, seen.wantTiles, 'the media grid rendered the wrong number of tiles');
             t.deepEqual(seen.warns, [], 'the gallery reported a degraded scene');
             t.deepEqual(errors, [], 'page errors in the gallery');
             await context.close();

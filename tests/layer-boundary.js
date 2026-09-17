@@ -31,6 +31,7 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 /** Files promised pure. Add a file here as part of moving it behind the wall. */
 const BEHIND_THE_WALL = [
     'js/chat-view.js',
+    'js/setup-view.js',
     'js/errors.js'
 ];
 

@@ -200,42 +200,23 @@
         }
 
         files.forEach((file, index) => {
+            // Markup lives in MirageSetupView so the gallery can render this grid at
+            // counts that are tedious to reach by hand. Binding stays here: a view
+            // has no idea a tile has an index in a list.
+            const painted = MirageSetupView.mediaTile({
+                name: file.name,
+                sizeLabel: formatBytes(file.size),
+                url: file.type.startsWith('image/') ? trackObjectUrl(URL.createObjectURL(file)) : null,
+                isVideo: !file.type.startsWith('image/')
+            });
             const item = document.createElement('div');
-            item.className = 'media-item';
+            item.className = painted.className;
+            item.innerHTML = painted.html;
 
-            if (file.type.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = trackObjectUrl(URL.createObjectURL(file));
-                img.alt = file.name;
-                item.appendChild(img);
-            } else {
-                const icon = document.createElement('div');
-                icon.className = 'media-video-icon';
-                icon.textContent = '▶';
-                item.appendChild(icon);
-            }
-
-            const meta = document.createElement('span');
-            meta.className = 'media-item-name';
-            meta.title = file.name;
-            meta.textContent = file.name;
-            item.appendChild(meta);
-
-            const size = document.createElement('span');
-            size.className = 'media-item-size';
-            size.textContent = formatBytes(file.size);
-            item.appendChild(size);
-
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'media-remove';
-            removeBtn.setAttribute('aria-label', `Remove ${file.name}`);
-            removeBtn.textContent = '×';
-            removeBtn.addEventListener('click', (e) => {
+            item.querySelector('.media-remove')?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 removeMedia(index);
             });
-            item.appendChild(removeBtn);
 
             grid.appendChild(item);
         });

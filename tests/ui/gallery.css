@@ -201,3 +201,18 @@
     text-transform: uppercase;
     opacity: 0.4;
 }
+
+/*
+ * A wizard step is a full screen in the app. Here it is one item in a list, so it
+ * gets a frame — the panel itself is untouched.
+ */
+.gallery-panel-frame {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 18px;
+    overflow: hidden;
+}
+
+.gallery-panel-frame .panel {
+    display: block;
+}
