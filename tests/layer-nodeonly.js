@@ -75,6 +75,41 @@ async function run({ origin }) {
             t.deepEqual(errors, [], 'page errors on a cold first launch');
             await context.close();
         });
+
+        await suite.test('the state gallery renders every scene from fake data', async (t) => {
+            // The gallery's whole value is that it shows the real UI, so the thing
+            // worth asserting is that its states come out of MirageChatView and land
+            // as real nodes. A gallery that silently renders nothing still "loads".
+            const context = await browser.newContext();
+            const page = await context.newPage();
+            const errors = [];
+            page.on('pageerror', e => errors.push(e.message));
+            await page.goto(`${origin}/tests/ui/gallery.html`, { waitUntil: 'domcontentloaded' });
+
+            const seen = await page.evaluate(() => {
+                const scenes = window.MirageGallery?.SCENES || [];
+                return {
+                    declared: scenes.length,
+                    rendered: document.querySelectorAll('.gallery-scene').length,
+                    // Summed from the inventory rather than hard-coded, so adding a
+                    // scene does not mean editing a number in here.
+                    wantEntries: scenes.reduce((n, s) => n + s.entries.length, 0),
+                    gotEntries: document.querySelectorAll('.chat-entry').length,
+                    wantCards: scenes.reduce((n, s) => n + s.cards.length, 0),
+                    gotCards: document.querySelectorAll('.phone-card').length,
+                    empties: [...document.querySelectorAll('.chat-entry, .phone-card')]
+                        .filter(n => !n.innerHTML.trim()).length
+                };
+            });
+
+            t.ok(seen.declared > 0, 'the gallery declares no scenes');
+            t.equal(seen.rendered, seen.declared, 'not every declared scene rendered');
+            t.equal(seen.gotEntries, seen.wantEntries, 'chat entries went missing');
+            t.equal(seen.gotCards, seen.wantCards, 'phone cards went missing');
+            t.equal(seen.empties, 0, 'a view rendered an empty node');
+            t.deepEqual(errors, [], 'page errors in the gallery');
+            await context.close();
+        });
     } finally {
         await browser.close();
     }

@@ -954,6 +954,56 @@
         },
 
         {
+            name: 'the chat view keeps the class names the stylesheet hangs on',
+            group: 'rules',
+            async run(ctx, t) {
+                // Extracting this markup out of appendChat / renderPhoneCard needed a
+                // guard, and the obvious candidate did not work: the Layer 2 baselines
+                // were run against a deliberately broken class name and passed, because
+                // they record behaviour and text, not markup. So the classes get pinned
+                // here. Not a full html snapshot — that breaks on every whitespace
+                // change and teaches people to re-record without reading.
+                const V = ctx.win.MirageChatView;
+
+                // Each html pattern is quote-anchored. Bare substrings looked fine and
+                // were useless: `chat-caption-text-TYPO` contains `chat-caption-text`,
+                // so the first draft of this test passed against the very typo it was
+                // written to catch.
+                const cases = [
+                    [{ role: 'user', text: 'hi' }, /^chat-entry chat-user chat-bubble chat-bubble-user$/, /class="ig-bubble ig-bubble-out"/],
+                    [{ role: 'ai', text: 'hi' }, /^chat-entry chat-ai chat-bubble chat-bubble-ai$/, /class="ig-bubble ig-bubble-in"/],
+                    [{ kind: 'caption', text: 'Left on read…' }, /^chat-entry chat-caption$/, /class="chat-caption-text"/],
+                    [{ kind: 'command', role: 'user', text: '/next scene' }, /^chat-entry chat-command chat-user$/, /class="chat-command-text"/],
+                    [{ kind: 'story', role: 'ai', text: 'post' }, /^chat-entry chat-story chat-ai$/, /class="chat-story-badge"/],
+                    [{ kind: 'alert', title: 'x', body: 'y' }, /^chat-entry chat-alert chat-alert-warn$/, /class="chat-alert-box"/]
+                ];
+                cases.forEach(([view, classRe, htmlRe]) => {
+                    const painted = V.chatEntry(view);
+                    t.match(painted.className, classRe, `chatEntry className for ${view.kind || view.role}`);
+                    t.match(painted.html, htmlRe, `chatEntry html for ${view.kind || view.role}`);
+                });
+
+                const dm = V.phoneCard({ text: 'x', imageUrl: 'data:,', mode: 'DM' });
+                t.match(dm.className, /^phone-card phone-card-dm$/, 'phoneCard DM className');
+                t.match(dm.html, /class="phone-card-img"/, 'phoneCard lost its image element');
+
+                const storyCard = V.phoneCard({ text: 'x', imageUrl: 'data:,', mode: 'STORY' });
+                t.match(storyCard.className, /^phone-card phone-card-story$/, 'phoneCard Story className');
+                t.match(storyCard.html, /class="story-kicker"/, 'phoneCard Story lost its kicker');
+
+                const failed = V.phoneCard({ text: 'x', mode: 'DM', imageFailed: true, imageFailReason: 'filtered' });
+                t.match(failed.className, /^phone-card phone-card-dm phone-card-no-image$/, 'a failed card lost its class');
+                t.match(failed.html, /Blocked by safety filter/, 'a filtered image stopped naming the filter');
+
+                // The view must never reach for engine state — that is the whole
+                // point of it, and it is what lets the gallery render with no engine.
+                t.noMatch(String(V.chatEntry), /EngineState|\bS\(\)/, 'the chat view reaches into engine state');
+                t.noMatch(String(V.phoneCard), /EngineState|\bS\(\)/, 'the phone view reaches into engine state');
+                t.noMatch(String(V.chatEntry), /document\./, 'the chat view touches the DOM');
+            }
+        },
+
+        {
             name: 'the awakening sequence cannot be reversed by an operator pin',
             group: 'rules',
             async run(ctx, t) {

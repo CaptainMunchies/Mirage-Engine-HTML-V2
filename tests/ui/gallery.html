@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mirage Engine — State Gallery</title>
+<!--
+    The app's own stylesheet, not a copy. Everything below is rendered by the same
+    MirageChatView the app calls, styled by the same CSS the app loads — so what
+    you see here is what the product looks like, or the gallery is broken.
+-->
+<link rel="stylesheet" href="../../css/app.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gallery-body">
+
+<header class="gallery-bar">
+    <div class="gallery-bar-title">
+        <h1>State Gallery</h1>
+        <span class="gallery-count" id="galleryCount"></span>
+    </div>
+    <p class="gallery-bar-note">
+        Every thread state, from fake data. No engine, no network, no credits.
+    </p>
+</header>
+
+<div class="gallery-layout">
+    <nav class="gallery-nav" id="galleryNav" aria-label="States"></nav>
+    <main class="gallery-main" id="galleryMain"></main>
+</div>
+
+<script src="../../js/chat-view.js"></script>
+<script src="gallery.js"></script>
+</body>
+</html>

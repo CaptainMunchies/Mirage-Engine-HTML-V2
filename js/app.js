@@ -98,6 +98,7 @@
         const maxReplyCharsSelect = document.getElementById('selectMaxReplyChars');
         const maxThinkingInputSelect = document.getElementById('selectMaxThinkingInput');
         const testRunnerBtn = document.getElementById('btnOpenTestRunner');
+        const galleryBtn = document.getElementById('btnOpenGallery');
         const resetMemoryBtn = document.getElementById('btnResetMemory');
         const resetMemoryOverlay = document.getElementById('resetMemoryOverlay');
         const resetMemoryCancel = document.getElementById('btnResetMemoryCancel');
@@ -666,6 +667,14 @@
             }
             const win = window.open(url, 'mirageTestRunner');
             if (!win) MirageUI.toast('Your browser blocked the runner window. Allow pop-ups for Mirage and try again.', 'error');
+        });
+
+        galleryBtn?.addEventListener('click', () => {
+            // Unlike the runner, this needs no sandbox and no separate origin: it
+            // renders markup from fake data and never boots the engine, so it cannot
+            // touch the library even in principle.
+            const win = window.open('tests/ui/gallery.html', 'mirageGallery');
+            if (!win) MirageUI.toast('Your browser blocked the gallery window. Allow pop-ups for Mirage and try again.', 'error');
         });
 
         resetMemoryBtn?.addEventListener('click', openResetMemoryOverlay);

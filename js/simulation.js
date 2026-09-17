@@ -1117,48 +1117,28 @@
         const commandBubble = role === 'user' && (isCommand || looksLikeSlashCommand(text));
         const clockNote = clockArrow ? String(clockArrow).trim() : '';
 
-        if (alert) {
-            entry.className = `chat-entry chat-alert chat-alert-${alertType}`;
-            entry.innerHTML = `
-                <div class="chat-alert-box">
-                    <span class="chat-alert-icon">${alertType === 'image-fail' ? '⚠' : 'ℹ'}</span>
-                    <div class="chat-alert-text">
-                        <strong>${escapeHtml(title || 'Notice')}</strong>
-                        <p>${escapeHtml(body || text || '')}</p>
-                    </div>
-                </div>`;
-        } else if (system || role === 'system' || caption) {
-            entry.className = 'chat-entry chat-caption';
-            entry.innerHTML = `<span class="chat-caption-text">${escapeHtml(text)}</span>`;
-        } else if (commandBubble) {
-            entry.className = 'chat-entry chat-command chat-user';
-            entry.innerHTML = `
-                <span class="chat-command-text">${escapeHtml(text)}</span>
-                ${clockNote ? `<span class="chat-command-clock">${escapeHtml(clockNote)}</span>` : ''}
-                ${timeHtml}`;
-        } else if (role === 'ai' && label === 'STORY') {
-            // Only this turn's Story caption — never paint DMs as STORY because mode is still STORY
-            entry.className = `chat-entry chat-story chat-${role}`;
-            entry.innerHTML = `
-                <span class="chat-story-badge">STORY</span>
-                <div class="chat-story-body">${escapeHtml(text)}</div>
-                ${timeHtml}`;
-        } else {
-            // Instagram-style DM bubbles
-            const isUser = role === 'user';
-            const name = S().profile?.name || 'Her';
-            entry.className = `chat-entry chat-${role} chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-ai'}`;
-            entry.innerHTML = isUser
-                ? `<div class="chat-bubble-stack chat-bubble-stack-out">
-                     <div class="ig-bubble ig-bubble-out">${escapeHtml(text)}</div>
-                     ${timeHtml}
-                   </div>`
-                : `${characterAvatarHtml({ className: 'ig-avatar', name })}
-                   <div class="chat-bubble-stack chat-bubble-stack-in">
-                     <div class="ig-bubble ig-bubble-in">${escapeHtml(text)}</div>
-                     ${timeHtml}
-                   </div>`;
-        }
+        // The markup lives in MirageChatView so the gallery can render these states
+        // from fake data without an engine. Everything it needs — the clock, her
+        // name, the master face — is read here and handed over, never reached for.
+        const kind = alert ? 'alert'
+            : (system || role === 'system' || caption) ? 'caption'
+                : commandBubble ? 'command'
+                    : (role === 'ai' && label === 'STORY') ? 'story'
+                        : 'bubble';
+        const painted = MirageChatView.chatEntry({
+            role,
+            text,
+            kind,
+            timeLabel,
+            name: S().profile?.name || 'Her',
+            photoUrl: S().masterFaceObjectUrl || null,
+            alertType,
+            title,
+            body,
+            clockNote
+        });
+        entry.className = painted.className;
+        entry.innerHTML = painted.html;
 
         log.appendChild(entry);
         log.scrollTop = log.scrollHeight;
@@ -1736,78 +1716,27 @@
 
         const card = document.createElement('div');
         const isStory = mode === 'STORY';
-        const isMock = !!mock;
-        card.className = `phone-card ${isStory ? 'phone-card-story' : 'phone-card-dm'}${imageFailed ? ' phone-card-no-image' : ''}${textOnly ? ' phone-card-text-only' : ''}${isMock ? ' phone-card-mock' : ''}`;
-        if (!textOnly) card.dataset.phoneImage = '1';
-        if (isMock) card.dataset.mockImage = '1';
 
         const stampMs = Number.isFinite(Number(at)) ? Number(at) : chatStampMs(at);
         card.setAttribute('data-at', String(stampMs));
 
         const name = S().profile?.name || 'Character';
-        // New card becomes latest; presence lives in the phone header, not per-card.
-        const avatar = characterAvatarHtml({ className: 'phone-avatar', name });
-
-        let imgBlock;
-        const mockBadge = isMock
-            ? '<span class="phone-card-mock-badge" title="Dev mock — not saved">MOCK</span>'
-            : '';
-        if (textOnly) {
-            imgBlock = '';
-        } else if (imageUrl && !imageFailed) {
-            imgBlock = mockBadge
-                + `<img src="${imageUrl}" alt="Generated visual" class="phone-card-img">`
-                + `<button type="button" class="phone-card-expand" title="View larger" aria-label="View larger">`
-                + `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">`
-                + `<path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>`
-                + `</svg></button>`;
-        } else if (isMock) {
-            imgBlock = mockBadge
-                + `<div class="phone-card-img phone-card-placeholder phone-card-mock-ph">Mock image · not saved</div>`;
-        } else if (imageFailed) {
-            const failLabel = imageFailReason === 'filtered'
-                ? 'Blocked by safety filter'
-                : 'Image blocked / failed';
-            imgBlock = `<div class="phone-card-img phone-card-placeholder phone-card-failed">${failLabel}</div>`;
-        } else {
-            imgBlock = `<div class="phone-card-img phone-card-placeholder">No image</div>`;
-        }
-
-        if (isStory) {
-            card.innerHTML = `
-                <div class="phone-card-header story">
-                    <span class="story-ring" aria-hidden="true">${characterAvatarHtml({ className: 'story-avatar', name })}</span>
-                    <div class="story-header-text">
-                        <span class="story-kicker">INSTAGRAM STORY</span>
-                        <strong>${escapeHtml(name)}</strong>
-                    </div>
-                </div>
-                ${textOnly ? '' : `<div class="phone-card-media">${imgBlock}</div>`}
-                <div class="phone-card-caption story-caption">${escapeHtml(text)}</div>
-            `;
-        } else if (textOnly) {
-            card.innerHTML = `
-                <div class="phone-card-header dm phone-card-header-slim">
-                    ${avatar}
-                    <div class="dm-header-text">
-                        <strong>${escapeHtml(name)}</strong>
-                    </div>
-                </div>
-                <div class="phone-card-text-only-body">${escapeHtml(text)}</div>
-            `;
-        } else {
-            card.innerHTML = `
-                <div class="phone-card-header dm phone-card-header-slim">
-                    ${avatar}
-                    <div class="dm-header-text">
-                        <strong>${escapeHtml(name)}</strong>
-                    </div>
-                </div>
-                <div class="phone-card-media">${imgBlock}
-                    <div class="snap-overlay">${escapeHtml(text)}</div>
-                </div>
-            `;
-        }
+        // Same split as appendChat: the markup is a pure view, the state stays here.
+        const painted = MirageChatView.phoneCard({
+            text,
+            imageUrl,
+            mode,
+            imageFailed,
+            imageFailReason,
+            textOnly,
+            mock,
+            name,
+            photoUrl: S().masterFaceObjectUrl || null
+        });
+        card.className = painted.className;
+        if (!textOnly) card.dataset.phoneImage = '1';
+        if (mock) card.dataset.mockImage = '1';
+        card.innerHTML = painted.html;
 
         const meta = document.createElement('div');
         meta.className = 'phone-card-meta';
