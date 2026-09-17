@@ -85,6 +85,9 @@ async function run({ origin }) {
             const errors = [];
             page.on('pageerror', e => errors.push(e.message));
             await page.goto(`${origin}/tests/ui/gallery.html`, { waitUntil: 'domcontentloaded' });
+            // The one-screen scene fetches index.html, so rendering is async. Wait on
+            // the page's own marker rather than a timeout that passes by being early.
+            await page.waitForFunction(() => document.body.dataset.galleryReady === '1', null, { timeout: 15000 });
 
             const seen = await page.evaluate(() => {
                 const scenes = window.MirageGallery?.SCENES || [];
@@ -98,7 +101,14 @@ async function run({ origin }) {
                     wantCards: scenes.reduce((n, s) => n + s.cards.length, 0),
                     gotCards: document.querySelectorAll('.phone-card').length,
                     empties: [...document.querySelectorAll('.chat-entry, .phone-card')]
-                        .filter(n => !n.innerHTML.trim()).length
+                        .filter(n => !n.innerHTML.trim()).length,
+                    // The one-screen reference clones the app's real simulation panel
+                    // and drives the real control deck. Both are silent when they fail:
+                    // the clone just does not appear, and bind() returns early.
+                    panel: document.querySelectorAll('#scene-everything .simulation-panel').length,
+                    deckPills: document.querySelectorAll('#scene-everything .deck-pills > *').length,
+                    directives: document.querySelectorAll('#scene-everything .deck-actions > *').length,
+                    warns: [...document.querySelectorAll('.gallery-warn')].map(n => n.textContent.trim())
                 };
             });
 
@@ -107,6 +117,10 @@ async function run({ origin }) {
             t.equal(seen.gotEntries, seen.wantEntries, 'chat entries went missing');
             t.equal(seen.gotCards, seen.wantCards, 'phone cards went missing');
             t.equal(seen.empties, 0, 'a view rendered an empty node');
+            t.equal(seen.panel, 1, 'the one-screen reference did not clone the simulation panel');
+            t.ok(seen.deckPills >= 8, `the control deck rendered ${seen.deckPills} pills`);
+            t.ok(seen.directives >= 5, `the control deck rendered ${seen.directives} directives`);
+            t.deepEqual(seen.warns, [], 'the gallery reported a degraded scene');
             t.deepEqual(errors, [], 'page errors in the gallery');
             await context.close();
         });

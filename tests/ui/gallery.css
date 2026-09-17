@@ -124,6 +124,22 @@
     overflow-y: auto;
 }
 
+/*
+ * The one-screen reference is the opposite case: it exists to be taken in at a
+ * glance, so its thread shows every entry rather than scrolling inside itself.
+ */
+.gallery-scene-full .chat-log {
+    max-height: none;
+}
+
+.gallery-warn {
+    margin: 0 0 10px;
+    padding: 7px 10px;
+    border-radius: 7px;
+    background: rgba(255, 176, 32, 0.12);
+    font-size: 12.5px;
+}
+
 .gallery-phone .phone-screen {
     min-height: 180px;
     max-height: 560px;

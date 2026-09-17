@@ -52,6 +52,41 @@
      */
     const SCENES = [
         {
+            id: 'everything',
+            name: 'Everything at once',
+            note: 'The whole simulation screen with every element visible together — generating bar, '
+                + 'skip-wait, debug badge, autocomplete, emoji panel, deck arg row, pinned metrics, '
+                + 'and a thread carrying one of each kind of entry. Several of these can never be on '
+                + 'screen at the same time in a real session; that is the point. One reference view.',
+            fullScreen: true,
+            entries: [
+                you('hey', '4:17 AM'),
+                her('hey you 🙈', '4:18 AM'),
+                command('/next scene', '7:24 AM → 10:24 AM'),
+                her('מי בכלל מתפקד לפני הקפה הראשון של הבוקר ☕️🥴', '10:24 AM'),
+                you('send me something', '10:25 AM'),
+                her('[reaction 😂]', '10:25 AM'),
+                caption('She was typing… then deleted it.'),
+                you('helloo'),
+                caption('Left on read…'),
+                caption('1h 20m passed without a reply.'),
+                story('המוח שלי עדיין תקוע על 4 בבוקר אבל השופינג לא יחכה לעצמו 🫠🛍️✨', '10:32 AM'),
+                you('ok found you', '10:33 AM'),
+                her('ok found it — הנה 📸', '10:34 AM'),
+                her('kidding. how was it?', '10:34 AM'),
+                alert('Image blocked by safety filter', 'Text still sent. Use Retry Last Image, or switch models in Settings if this keeps happening.', 'image-fail'),
+                alert('Thinking model never answered', 'The thinking model did not answer in time (model: gemini-3.7-flash). She never wrote anything and no photo was attempted.')
+            ],
+            cards: [
+                { text: 'hey you 🙈', imageUrl: FAKE_PHOTO, mode: 'DM', name: HER, timeLabel: '4:18 AM' },
+                { text: 'המוח שלי עדיין תקוע על 4 בבוקר 🫠', imageUrl: FAKE_PHOTO, mode: 'STORY', name: HER, timeLabel: '10:32 AM' },
+                { text: 'barely 💀', mode: 'DM', textOnly: true, name: HER, timeLabel: '10:33 AM' },
+                { text: 'no 🙈', mode: 'DM', imageFailed: true, imageFailReason: 'filtered', name: HER, timeLabel: '10:35 AM' },
+                { text: 'here 🫠', mode: 'DM', imageFailed: true, name: HER, timeLabel: '10:36 AM' },
+                { text: 'mock turn', mode: 'DM', mock: true, name: HER, timeLabel: '10:37 AM' }
+            ]
+        },
+        {
             id: 'empty',
             name: 'Empty thread',
             note: 'First launch, before anything has happened.',
@@ -252,6 +287,182 @@
         return shell;
     }
 
+    /**
+     * The one-screen reference: the app's *actual* simulation panel, cloned out of
+     * index.html at load time.
+     *
+     * Cloning rather than rebuilding is the whole trick. The chat entries and phone
+     * cards already come from MirageChatView, but the screen around them — topbar,
+     * HUD strip, composer, control deck, phone bezel — is markup only index.html
+     * has. Hand-copying it here would have produced a reference that slowly stopped
+     * matching the thing it is a reference for.
+     *
+     * Elements the app keeps hidden until their moment are all forced visible at
+     * once. Several combinations below cannot occur in a real session — a generating
+     * bar above a finished thread, an emoji panel open beside a deck arg row. That
+     * is deliberate: this is for seeing how the pieces sit together, not for
+     * reproducing a reachable state.
+     */
+    const FORCE_VISIBLE = [
+        'simGenBar', 'btnSkipWait', 'btnToggleDebug', 'debugUnreadBadge',
+        'simUserProfileWrap', 'phoneStatusSpecial', 'deckArgRow', 'deckArgPreview',
+        'deckPending', 'cmdAutocomplete', 'emojiPickerPanel'
+    ];
+
+    const HUD = {
+        hudPersona: 'Goon', hudMode: 'DM', hudArousal: '58', hudTease: '3',
+        hudAwareness: '25', hudThermal: 'Warm', hudMood: 'Playful · 2',
+        hudOutfit: 'Concert Mesh', hudEnv: 'Tel Aviv Designer Boutique',
+        hudCompliance: 'Hot (72)'
+    };
+
+    async function renderFullScreen(scene) {
+        const section = el('section', 'gallery-scene gallery-scene-full');
+        section.id = `scene-${scene.id}`;
+        section.appendChild(el('h2', 'gallery-scene-name', V.escapeHtml(scene.name)));
+        section.appendChild(el('p', 'gallery-scene-note', V.escapeHtml(scene.note)));
+
+        let panel;
+        try {
+            const html = await fetch('../../index.html').then(r => r.text());
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            panel = doc.querySelector('.simulation-panel');
+        } catch (err) {
+            panel = null;
+        }
+        if (!panel) {
+            section.appendChild(el('p', 'gallery-warn',
+                'Could not read the simulation panel out of index.html — this scene needs the app '
+                + 'served over http, not opened as a file.'));
+            return section;
+        }
+
+        panel.removeAttribute('hidden');
+        panel.querySelectorAll('[hidden]').forEach((node) => {
+            if (FORCE_VISIBLE.includes(node.id)) node.removeAttribute('hidden');
+        });
+
+        const pick = (id) => panel.querySelector(`#${id}`);
+        Object.entries(HUD).forEach(([id, value]) => {
+            const node = pick(id);
+            if (node) node.textContent = value;
+        });
+
+        const label = pick('simCharacterLabel');
+        if (label) label.textContent = `${HER} · 22 · israel`;
+        const headerName = pick('phoneHeaderName');
+        if (headerName) headerName.textContent = HER;
+        const avatar = pick('phoneHeaderAvatar');
+        if (avatar) avatar.textContent = HER.charAt(0).toUpperCase();
+        const presence = pick('phonePresence');
+        if (presence) presence.textContent = 'Active now';
+        const special = pick('phoneStatusSpecial');
+        if (special) special.textContent = 'Erev Sukkot';
+        const pending = pick('deckPending');
+        if (pending) pending.textContent = 'Pinned — she’ll use it when she next texts.';
+        const argPreview = pick('deckArgPreview');
+        if (argPreview) argPreview.textContent = '/change outfit → Festival Leather';
+        const input = pick('simInput');
+        if (input) input.value = '/persona ';
+
+        const autocomplete = pick('cmdAutocomplete');
+        if (autocomplete) {
+            autocomplete.innerHTML = ['/persona', '/next scene', '/fourth wall', '/time pass']
+                .map((cmd, i) => `<li role="option" class="cmd-option${i === 0 ? ' is-active' : ''}">${cmd}</li>`)
+                .join('');
+        }
+
+        const log = pick('chatLog');
+        if (log) {
+            scene.entries.forEach((view) => {
+                const painted = V.chatEntry(view);
+                log.appendChild(el('div', painted.className, painted.html));
+            });
+        }
+
+        const feed = pick('phoneFeed');
+        const phoneEmpty = pick('phoneEmpty');
+        if (phoneEmpty) phoneEmpty.hidden = true;
+        if (feed) {
+            scene.cards.forEach((view) => {
+                const painted = V.phoneCard(view);
+                const card = el('div', painted.className, painted.html);
+                const meta = el('div', 'phone-card-meta');
+                meta.textContent = view.timeLabel || '';
+                card.appendChild(meta);
+                feed.appendChild(card);
+            });
+        }
+
+        section.appendChild(panel);
+        return section;
+    }
+
+    /**
+     * The deck names its siblings directly, and `MirageSimulation?.x` still throws a
+     * ReferenceError when the identifier was never declared — optional chaining
+     * guards a missing *property*, not a missing *global*. So every sibling it can
+     * reach for is declared here before `bind()` runs.
+     *
+     * Only the behavioural ones are faked. MiragePrompt is loaded for real, because
+     * it owns the persona list and stubbing that would put a second, drifting copy
+     * of the taxonomy in the gallery — the exact thing this page exists to avoid.
+     */
+    function stubSiblings() {
+        const w = window;
+        w.EngineState = w.EngineState || {
+            THERMAL_VALUES: ['Normal', 'Warm', 'Hot', 'Burning'],
+            session: { persona: 'Goon', thermal: 'Warm', clockResumeHold: false },
+            profile: { name: HER, location: 'israel' },
+            setOperatorOverride() {}
+        };
+        w.MirageSimulation = w.MirageSimulation || {
+            isTurnInProgress: () => false,
+            isEngineBusy: () => false,
+            isHardBusy: () => false,
+            updateHud() {},
+            executeTurn() {}
+        };
+        w.MirageImmersion = w.MirageImmersion || { pacingMode: () => 'instant', waitForHer() {} };
+        w.MirageUI = w.MirageUI || { toast() {} };
+        w.MiragePhoneUX = w.MiragePhoneUX || {
+            herNow: () => new Date('2026-09-25T10:34:00'),
+            formatClock: () => '10:34 AM',
+            formatClockArrow: () => '10:34 AM → 11:20 AM',
+            estimateDirectiveAdvanceMs: () => 46 * 60 * 1000,
+            resolveTimeZone: () => 'Asia/Jerusalem'
+        };
+        // Named by MiragePrompt but never needed to build a pill.
+        ['MirageUserProfiles', 'MirageMemoryLedger', 'MirageModels', 'MirageRoutine',
+            'MirageCalendar', 'MirageLoyaltyUX', 'MirageCommands'].forEach((name) => {
+            if (!(name in w)) w[name] = undefined;
+        });
+    }
+
+    /**
+     * The deck's pills are built at runtime, so a clone alone leaves those groups
+     * empty. Driving the real builder keeps this from becoming a second, drifting
+     * copy of the deck's taxonomy.
+     *
+     * It runs *after* the section is in the document, because `bind()` looks its
+     * root up by id and silently returns if it is not there yet — which is exactly
+     * what happened on the first attempt: no pills, no error, nothing to see.
+     */
+    function hydrateDeck(section) {
+        try {
+            stubSiblings();
+            window.MirageControlDeck?.bind?.();
+            const built = section.querySelectorAll('.deck-pills > *, .deck-actions > *').length;
+            if (!built) throw new Error('bind() ran but produced no pills');
+        } catch (err) {
+            const body = section.querySelector('#controlDeckBody');
+            if (body) {
+                body.prepend(el('p', 'gallery-warn',
+                    `Control deck pills are not rendered here: ${V.escapeHtml(err.message)}`));
+            }
+        }
+    }
+
     function renderScene(scene) {
         const section = el('section', 'gallery-scene');
         section.id = `scene-${scene.id}`;
@@ -264,20 +475,29 @@
         return section;
     }
 
-    function render() {
+    async function render() {
         const nav = document.getElementById('galleryNav');
         const main = document.getElementById('galleryMain');
         if (!nav || !main) return;
 
-        SCENES.forEach((scene) => {
+        for (const scene of SCENES) {
             const link = el('a', 'gallery-nav-link', V.escapeHtml(scene.name));
             link.href = `#scene-${scene.id}`;
             nav.appendChild(link);
-            main.appendChild(renderScene(scene));
-        });
+            if (scene.fullScreen) {
+                const section = await renderFullScreen(scene);
+                main.appendChild(section);
+                hydrateDeck(section);
+            } else {
+                main.appendChild(renderScene(scene));
+            }
+        }
 
         const count = document.getElementById('galleryCount');
         if (count) count.textContent = `${SCENES.length} states`;
+        // The full-screen scene fetches index.html, so rendering is async now.
+        // The suite waits on this rather than guessing a timeout.
+        document.body.dataset.galleryReady = '1';
     }
 
     // Exposed so the suite can assert every scene still renders something.
