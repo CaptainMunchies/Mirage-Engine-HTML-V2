@@ -108,6 +108,14 @@ async function run({ origin }) {
                     panel: document.querySelectorAll('#scene-everything .simulation-panel').length,
                     deckPills: document.querySelectorAll('#scene-everything .deck-pills > *').length,
                     directives: document.querySelectorAll('#scene-everything .deck-actions > *').length,
+                    // Overlay and HUD scenes clone markup out of the shared parsed
+                    // index.html. appendChild *moves* a node, so a scene that borrowed
+                    // instead of cloning silently emptied every scene after it — these
+                    // two counts are what catch that.
+                    wantOverlays: scenes.filter(s => s.overlayId).length,
+                    gotOverlays: document.querySelectorAll('.gallery-overlay-frame > *').length,
+                    wantHud: scenes.reduce((n, s) => n + (s.hudSet ? s.hudSet.length : 0), 0),
+                    gotHud: document.querySelectorAll('.gallery-hud-row .metrics-hud').length,
                     warns: [...document.querySelectorAll('.gallery-warn')].map(n => n.textContent.trim())
                 };
             });
@@ -120,6 +128,8 @@ async function run({ origin }) {
             t.equal(seen.panel, 1, 'the one-screen reference did not clone the simulation panel');
             t.ok(seen.deckPills >= 8, `the control deck rendered ${seen.deckPills} pills`);
             t.ok(seen.directives >= 5, `the control deck rendered ${seen.directives} directives`);
+            t.equal(seen.gotOverlays, seen.wantOverlays, 'an overlay scene rendered nothing');
+            t.equal(seen.gotHud, seen.wantHud, 'a HUD variant rendered nothing');
             t.deepEqual(seen.warns, [], 'the gallery reported a degraded scene');
             t.deepEqual(errors, [], 'page errors in the gallery');
             await context.close();

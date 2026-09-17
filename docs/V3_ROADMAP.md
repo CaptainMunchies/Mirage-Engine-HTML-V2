@@ -391,7 +391,24 @@ Currently behind the wall: `js/chat-view.js` and `js/errors.js`. Not yet checked
 direction — that engine files stop *building* markup. `simulation.js` alone has 1,046 findings
 against these rules today, and declaring that a violation now is how a check gets switched off.
 
-**The gallery.** One page rendering every UI state from fake data — the full inventory is in §3, and
+**The gallery.** ✅ **Thread and operator groups done** (29 states); setup states remain, and
+"both modes" waits on Phase 5, which is what introduces Immersion and Director — there is nothing
+to render twice yet.
+
+Opens from Settings → Developer. It writes none of the app's markup: chat entries and phone cards
+come from `MirageChatView`, and the simulation panel, the eleven overlays and the HUD strip are
+cloned out of `index.html` at load time. The one-screen "Everything at once" reference shows the
+whole simulation screen with the normally-hidden elements forced open together, and drives the real
+`MirageControlDeck.bind()` so the deck taxonomy is not duplicated either.
+
+Three bugs surfaced while building it, all of them silent rather than loud, and all caught by
+making degraded scenes report themselves and asserting on that: `bind()` returns early when its
+root is not yet in the document; `MirageSimulation?.x` throws when the identifier was never
+declared, since optional chaining guards a missing property and not a missing global; and
+`appendChild` *moves* a node, so the full-screen scene tore the panel — and the HUD strip and two
+overlays that live inside it — out from under every scene rendered after it.
+
+One page rendering every UI state from fake data — the full inventory is in §3, and
 it covers thread states, operator states, setup states, and each of those in both modes. Today,
 seeing states like "blocked by safety filter" or "credit guard fired" means playing until you hit
 them and spending credits. This makes them one click each.

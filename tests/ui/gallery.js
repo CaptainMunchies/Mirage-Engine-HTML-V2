@@ -47,6 +47,126 @@
     const story = (text, timeLabel = '4:18 AM') => ({ role: 'ai', kind: 'story', text, timeLabel });
 
     /**
+     * index.html, parsed once and shared. Every scene that needs real app markup —
+     * the simulation panel, the overlays, the HUD strip — takes it from here rather
+     * than keeping a copy, which is the difference between a reference and a fiction.
+     */
+    let appDocPromise = null;
+    function appDoc() {
+        if (!appDocPromise) {
+            appDocPromise = fetch('../../index.html')
+                .then(r => r.text())
+                .then(html => new DOMParser().parseFromString(html, 'text/html'))
+                .catch(() => null);
+        }
+        return appDocPromise;
+    }
+
+    /**
+     * The operator states: things the app shows you *about the run*, rather than
+     * things she said. Most are overlays — the states the roadmap singles out as
+     * "rarely-seen stop being the ugliest ones", because reaching them for real
+     * means filling a browser's storage or letting her ghost you five times.
+     *
+     * `fills` writes into the slots the app populates at runtime, so the copy reads
+     * like a real occurrence instead of an empty template.
+     */
+    const OPERATOR_SCENES = [
+        {
+            id: 'credit-guard',
+            name: 'Credit guard fired',
+            note: 'She sent five in a row while you stayed quiet, so follow-ups stopped paying for themselves.',
+            overlayId: 'unresponsiveCapOverlay'
+        },
+        {
+            id: 'clock-resume',
+            name: 'Clock resume',
+            note: 'You came back after a long gap and her world clock needs a decision.',
+            overlayId: 'clockResumeOverlay',
+            fills: {
+                clockResumeLead: 'You were away for 2 days. Choose how her world clock should continue.',
+                clockResumeKeepPreview: 'stays at Fri 10:37 AM',
+                clockResumeHerPreview: 'jumps to Sun 1:14 PM in israel',
+                clockResumeUserPreview: 'jumps to Sun 1:14 PM (your time)'
+            }
+        },
+        {
+            id: 'resume-turn',
+            name: 'Refresh mid-turn',
+            note: 'A refresh landed after she replied but before the photo — the writing is paid for.',
+            overlayId: 'resumeTurnModal',
+            fills: { resumeTurnPreview: '“רצתי ישר לתא הלבשה למדוד במיוחד בשבילך… 🤤”' }
+        },
+        {
+            id: 'storage-full',
+            name: 'Storage full',
+            note: 'The 5 MB cliff. Reaching this for real means losing a save.',
+            overlayId: 'storageFullModal',
+            fills: { storageFullContext: 'Chat progress for this turn was not saved.' }
+        },
+        {
+            id: 'age-gate',
+            name: 'Age gate',
+            note: 'First launch, before anything else is reachable.',
+            overlayId: 'ageGateOverlay'
+        },
+        {
+            id: 'fiction-consent',
+            name: 'Fiction consent',
+            note: 'The second gate, after age.',
+            overlayId: 'fictionConsentOverlay'
+        },
+        {
+            id: 'reset-memory',
+            name: 'Reset memory',
+            note: 'A destructive action, behind a confirm.',
+            overlayId: 'resetMemoryOverlay'
+        },
+        {
+            id: 'awakening',
+            name: 'Awakening stages',
+            note: 'Irreversible once started: awareness floors at 25 and climbs. The HUD is the only '
+                + 'place the stage is visible, so all four bands are shown together here.',
+            hudSet: [
+                { label: 'crack · awareness 25', hud: { hudAwareness: '25 · crack', hudMood: 'Anxious · 2' } },
+                { label: 'fracture · awareness 40', hud: { hudAwareness: '40 · fracture', hudMood: 'Distant · 2' } },
+                { label: 'spill · awareness 70', hud: { hudAwareness: '70 · spill', hudMood: 'Vulnerable · 3' } },
+                { label: 'awakened · awareness 100', hud: { hudAwareness: '100 · awakened', hudMood: 'Lonely · 3' } }
+            ]
+        },
+        {
+            id: 'pins',
+            name: 'Operator pin held, then released',
+            note: 'A pin wins for one turn and the narrative resumes from it. The deck line is the '
+                + 'only confirmation you get that it landed.',
+            hudSet: [
+                { label: 'pinned this turn', hud: { hudThermal: 'Burning', hudArousal: '85' }, deckPending: 'Pinned — she’ll use it when she next texts.' },
+                { label: 'pin expired, model resumed from it', hud: { hudThermal: 'Hot', hudArousal: '78' } }
+            ]
+        },
+        {
+            id: 'proxy-down',
+            name: 'Proxy down',
+            note: 'The server is not running, or the page was opened as a file.',
+            entries: [
+                you('hey'),
+                alert('Network error — is the server running?', 'Network or CORS error. Launch via START MIRAGE.bat (localhost) — do not open index.html as a file.')
+            ],
+            cards: []
+        },
+        {
+            id: 'rate-limit',
+            name: 'Rate limit',
+            note: 'Provider quota, not a Mirage failure — the copy has to make that clear.',
+            entries: [
+                you('again'),
+                alert('Rate limit hit — wait and retry.', 'Rate limit or quota exceeded. Wait a minute and try again.')
+            ],
+            cards: []
+        }
+    ];
+
+    /**
      * The inventory. Each scene is a name, a one-line note on why it is worth
      * looking at, and the entries / cards that make it up.
      */
@@ -317,19 +437,15 @@
     };
 
     async function renderFullScreen(scene) {
-        const section = el('section', 'gallery-scene gallery-scene-full');
-        section.id = `scene-${scene.id}`;
-        section.appendChild(el('h2', 'gallery-scene-name', V.escapeHtml(scene.name)));
-        section.appendChild(el('p', 'gallery-scene-note', V.escapeHtml(scene.note)));
+        const section = sceneShell(scene);
+        section.className = 'gallery-scene gallery-scene-full';
 
-        let panel;
-        try {
-            const html = await fetch('../../index.html').then(r => r.text());
-            const doc = new DOMParser().parseFromString(html, 'text/html');
-            panel = doc.querySelector('.simulation-panel');
-        } catch (err) {
-            panel = null;
-        }
+        const doc = await appDoc();
+        // Clone, never borrow. appendChild *moves* a node, so using the parsed
+        // document's own panel tore it — and the HUD strip and two overlays that
+        // live inside it — out from under every scene rendered after this one.
+        const source = doc && doc.querySelector('.simulation-panel');
+        const panel = source && source.cloneNode(true);
         if (!panel) {
             section.appendChild(el('p', 'gallery-warn',
                 'Could not read the simulation panel out of index.html — this scene needs the app '
@@ -463,11 +579,72 @@
         }
     }
 
-    function renderScene(scene) {
+    /** An overlay, lifted from index.html and forced open. */
+    async function renderOverlay(scene) {
+        const section = sceneShell(scene);
+        const doc = await appDoc();
+        const found = doc && doc.getElementById(scene.overlayId);
+        const node = found && found.cloneNode(true);
+        if (!node) {
+            section.appendChild(el('p', 'gallery-warn',
+                `Could not find #${scene.overlayId} in index.html.`));
+            return section;
+        }
+        node.removeAttribute('hidden');
+        node.removeAttribute('aria-hidden');
+        Object.entries(scene.fills || {}).forEach(([id, text]) => {
+            const slot = node.querySelector(`#${id}`);
+            if (slot) {
+                slot.removeAttribute('hidden');
+                slot.textContent = text;
+            }
+        });
+        // Overlays are position:fixed in the app. Inside a frame they would cover the
+        // whole gallery, so each gets its own containing block.
+        const frame = el('div', 'gallery-overlay-frame');
+        frame.appendChild(node);
+        section.appendChild(frame);
+        return section;
+    }
+
+    /** One or more HUD strips side by side — for states only the HUD shows. */
+    async function renderHudSet(scene) {
+        const section = sceneShell(scene);
+        const doc = await appDoc();
+        const source = doc && doc.querySelector('.metrics-hud');
+        if (!source) {
+            section.appendChild(el('p', 'gallery-warn', 'Could not find the HUD strip in index.html.'));
+            return section;
+        }
+        const stack = el('div', 'gallery-hud-stack');
+        scene.hudSet.forEach((variant) => {
+            const row = el('div', 'gallery-hud-row');
+            row.appendChild(el('span', 'gallery-hud-label', V.escapeHtml(variant.label)));
+            const strip = source.cloneNode(true);
+            Object.entries({ ...HUD, ...variant.hud }).forEach(([id, value]) => {
+                const slot = strip.querySelector(`#${id}`);
+                if (slot) slot.textContent = value;
+            });
+            row.appendChild(strip);
+            if (variant.deckPending) {
+                row.appendChild(el('p', 'deck-pending', V.escapeHtml(variant.deckPending)));
+            }
+            stack.appendChild(row);
+        });
+        section.appendChild(stack);
+        return section;
+    }
+
+    function sceneShell(scene) {
         const section = el('section', 'gallery-scene');
         section.id = `scene-${scene.id}`;
         section.appendChild(el('h2', 'gallery-scene-name', V.escapeHtml(scene.name)));
         section.appendChild(el('p', 'gallery-scene-note', V.escapeHtml(scene.note)));
+        return section;
+    }
+
+    function renderScene(scene) {
+        const section = sceneShell(scene);
         const split = el('div', 'gallery-split');
         split.appendChild(renderThread(scene.entries));
         split.appendChild(renderPhone(scene.cards));
@@ -475,33 +652,50 @@
         return section;
     }
 
+    /**
+     * Every scene carries `entries` and `cards` even when it has none, so the whole
+     * list can be walked and counted the same way. An overlay scene that simply
+     * lacked the field made the suite's inventory sum throw rather than fail.
+     */
+    const ALL_SCENES = [...SCENES, ...OPERATOR_SCENES].map(s => ({
+        entries: [], cards: [], ...s
+    }));
+
+    function renderOne(scene) {
+        if (scene.fullScreen) return renderFullScreen(scene);
+        if (scene.overlayId) return renderOverlay(scene);
+        if (scene.hudSet) return renderHudSet(scene);
+        return Promise.resolve(renderScene(scene));
+    }
+
     async function render() {
         const nav = document.getElementById('galleryNav');
         const main = document.getElementById('galleryMain');
         if (!nav || !main) return;
 
-        for (const scene of SCENES) {
+        const operatorFirstId = OPERATOR_SCENES[0] && OPERATOR_SCENES[0].id;
+        for (const scene of ALL_SCENES) {
+            if (scene.id === operatorFirstId) {
+                nav.appendChild(el('span', 'gallery-nav-group', 'Operator'));
+            }
             const link = el('a', 'gallery-nav-link', V.escapeHtml(scene.name));
             link.href = `#scene-${scene.id}`;
             nav.appendChild(link);
-            if (scene.fullScreen) {
-                const section = await renderFullScreen(scene);
-                main.appendChild(section);
-                hydrateDeck(section);
-            } else {
-                main.appendChild(renderScene(scene));
-            }
+
+            const section = await renderOne(scene);
+            main.appendChild(section);
+            if (scene.fullScreen) hydrateDeck(section);
         }
 
         const count = document.getElementById('galleryCount');
-        if (count) count.textContent = `${SCENES.length} states`;
-        // The full-screen scene fetches index.html, so rendering is async now.
+        if (count) count.textContent = `${ALL_SCENES.length} states`;
+        // The scenes that clone app markup fetch index.html, so rendering is async.
         // The suite waits on this rather than guessing a timeout.
         document.body.dataset.galleryReady = '1';
     }
 
     // Exposed so the suite can assert every scene still renders something.
-    window.MirageGallery = { SCENES, render, renderScene };
+    window.MirageGallery = { SCENES: ALL_SCENES, render, renderScene };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', render, { once: true });

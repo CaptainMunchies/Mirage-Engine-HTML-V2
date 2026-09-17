@@ -158,3 +158,46 @@
     .gallery-nav { position: static; flex-direction: row; flex-wrap: wrap; }
     .gallery-split { grid-template-columns: minmax(0, 1fr); }
 }
+
+/*
+ * Overlays are position:fixed in the app, so inside the page they would cover the
+ * whole gallery. Each gets its own containing block instead — the overlay is
+ * unchanged, it is simply scoped to a frame.
+ */
+.gallery-overlay-frame {
+    position: relative;
+    transform: scale(1);
+    min-height: 320px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.gallery-overlay-frame > * {
+    position: absolute;
+    inset: 0;
+}
+
+.gallery-hud-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.gallery-hud-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.5;
+}
+
+.gallery-nav-group {
+    margin: 14px 0 3px;
+    padding: 0 10px;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.4;
+}
