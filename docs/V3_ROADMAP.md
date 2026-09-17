@@ -303,9 +303,31 @@ One miss recovers silently; a persistent one fails visibly and commits nothing. 
 fallback is gone — it was the thing that turned a broken reply into a bubble that looked like she
 had nothing to say.
 
-**Types on the contract.** This is where the gradual typing starts, because the reply format is the
-highest-traffic and most breakable surface in the app, and the place an agent is most likely to
-misspell something invisibly. Other files get typed only as they're touched.
+**Types on the contract.** ✅ **Done.** JSDoc `@typedef`s for the whole turn reply
+(`TurnReply`, `TurnTracking`, `TurnInterpretation`, `TurnImageDirective`, `TurnMemoryUpdate`,
+`TurnDelivery`) sit beside `TURN_CONTRACT`, because that object is what the *model* is shown and
+these are what the *client* is promised, and the two drifting apart is what this phase exists to
+prevent. Every field is optional: `validateTurnReply` decides which absences are fatal, and typing
+them required would describe a reply we wish we got rather than one we might.
+
+Checked by `tsc --noEmit` as a **`types` layer inside `node tests/run.js all`** — a check nobody
+runs is a comment. The app stays no-build: nothing is compiled or bundled, tsc reads the same `.js`
+the browser loads, and the types live in comments the browser ignores. Delete `tests/` and the app
+is unchanged.
+
+Deliberately not strict, and that was measured rather than assumed: full `checkJs` across six core
+files raised **1,725** findings, of which 178 on one file were "parameter implicitly has an any
+type" — none of them bugs, all of them burying the one that matters. With `noImplicitAny` off and
+the cross-module globals declared, the contract surface went from 418 findings to **5**. Of those
+five, one was a genuine defect: `buildImageSystemInstruction` and `buildImagePrompt` both documented
+`{references, faceRecovery}` while `simulation.js:2517` had been passing `soft` all along — the
+option that turns on `PROVIDER_SOFTENING_NOTE` and rewrites expression wording for a safety-filter
+retry. A load-bearing option the signature denied existed.
+
+`tests/tsconfig.json` carries an allowlist of files that are clean, and *that list* is what grows:
+other files get typed only as they're touched. Proven by sabotage — misspelling
+`parsed.characterResponse` as `characterRespone` fails the layer with
+`Property 'characterRespone' does not exist on type 'TurnReply'. Did you mean 'characterResponse'?`
 
 **Clean JSON in the example (B9).** ✅ **Done.** The notes moved outside the JSON under a FIELD
 NOTES heading; all three renderings parse. Verified by injecting a `//` back in and watching the

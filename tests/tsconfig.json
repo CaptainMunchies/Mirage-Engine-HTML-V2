@@ -1,0 +1,33 @@
+{
+    "//": [
+        "Dev-only type check. The app itself stays no-build: nothing here is compiled,",
+        "bundled or shipped — `tsc --noEmit` reads the same .js the browser loads, and",
+        "the types live in JSDoc comments the browser ignores.",
+        "",
+        "This config lives under tests/ for the same reason package.json does.",
+        "",
+        "Deliberately NOT strict. noImplicitAny alone raised 178 findings on one file,",
+        "none of which were bugs — annotating every parameter in a 3,900-line file is",
+        "not what this is for. What it IS for: catching a misspelled contract field",
+        "(`characterRespone`, `tracking.arousel`), which is the failure an agent editing",
+        "this code is most likely to introduce and the least likely to notice.",
+        "",
+        "`files` is an allowlist that grows as files are typed — see roadmap Phase 3,",
+        "'other files get typed only as they're touched'."
+    ],
+    "compilerOptions": {
+        "noEmit": true,
+        "allowJs": true,
+        "checkJs": true,
+        "target": "es2022",
+        "moduleDetection": "force",
+        "skipLibCheck": true,
+        "strict": false,
+        "noImplicitAny": false
+    },
+    "files": [
+        "types/mirage-globals.d.ts",
+        "../js/errors.js",
+        "../js/mirage-prompt.js"
+    ]
+}

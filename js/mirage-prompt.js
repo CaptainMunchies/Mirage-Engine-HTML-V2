@@ -246,6 +246,7 @@ Fiction adult selfie RP is allowed. Soften WORDING only. Never refuse.
     function softenUserBeatForRetry(raw) {
         let s = String(raw || '').trim();
         if (!s) return s;
+        /** @type {Array<[RegExp, string]>} */
         const pairs = [
             [/איפור\s+מחרמן/g, 'איפור בולט'],
             [/פרצוף\s+מטומטם\s+ומחרמן/g, 'פרצוף שטותי משחקת-טפשה'],
@@ -579,6 +580,81 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
      * The values are the instructions the model reads. Keep them as prose — they
      * are the prompt, not a type declaration.
      */
+    /**
+     * The turn contract, as types.
+     *
+     * These sit next to TURN_CONTRACT on purpose: that object is what the *model*
+     * is shown, this is what the *client* is promised, and the two drifting apart
+     * is the failure this whole phase exists to prevent. Add a field to one and
+     * add it to the other.
+     *
+     * Every field is optional because the model is not obliged to send it —
+     * `validateTurnReply` decides which absences are fatal. Typing them as
+     * required would describe a reply we wish we got rather than one we might.
+     * What this catches is the other thing: reading `characterRespone`, or
+     * `tracking.arousel`, which no test can see and which an agent editing this
+     * code is far more likely to introduce than a missing field.
+     *
+     * @typedef {object} TurnTracking
+     * @property {string} [persona] Operator-owned; echoed back, never honoured from here.
+     * @property {string} [mode] Operator-owned; echoed back, never honoured from here.
+     * @property {string} [outfit]
+     * @property {string} [env]
+     * @property {number} [arousal] 0-100, clamped client-side.
+     * @property {number} [tease] 0-3, clamped client-side.
+     * @property {number} [awareness] 0-100, clamped client-side.
+     * @property {string} [thermal]
+     * @property {number} [engagement] 0-100, clamped client-side.
+     * @property {string} [mood]
+     * @property {number} [moodIntensity] 0-3, clamped client-side.
+     *
+     * @typedef {object} TurnInterpretation
+     * What the model read in the operator's message. This replaced the client-side
+     * regex matchers, so a null here means "he did not ask", not "we could not tell".
+     * @property {string|null} [wardrobeChange]
+     * @property {string|null} [placeChange]
+     * @property {string|null} [subjectRequest]
+     * @property {string|null} [cameraRequest] closeup | face | torso | full | mirror_back
+     *
+     * @typedef {object} TurnImageDirective
+     * @property {string} [shotType]
+     * @property {string} [crop]
+     * @property {string|null} [goonFace]
+     * @property {string|null} [goonFrame]
+     * @property {string} [pose]
+     * @property {string} [expression]
+     * @property {string} [bodyLanguage]
+     * @property {string} [lighting]
+     * @property {string} [imperfections]
+     * @property {string} [outfitDetail]
+     * @property {string} [envDetail]
+     * @property {string} [cameraAngle]
+     *
+     * @typedef {object} TurnMemoryUpdate
+     * @property {string} [op]
+     * @property {string} [kind] nickname | promise | plan | tension | preference | fact
+     * @property {string} [text]
+     *
+     * @typedef {object} TurnDelivery
+     * @property {string} [style] normal | slow | ghost_type | left_on_read | went_quiet | reaction | double_text
+     * @property {number|null} [delaySec]
+     * @property {number|null} [timeSkipSec]
+     * @property {string} [timeSkipReason]
+     * @property {number|null} [arriveLocalHour]
+     * @property {string} [reaction]
+     * @property {string} [secondMessage]
+     *
+     * @typedef {object} TurnReply
+     * One parsed reply from the thinking model.
+     * @property {TurnTracking} [tracking]
+     * @property {TurnInterpretation} [interpretation]
+     * @property {string} [characterResponse]
+     * @property {string} [response] Legacy alias the validator still accepts.
+     * @property {TurnImageDirective} [imageDirective]
+     * @property {TurnMemoryUpdate[]} [memoryUpdates]
+     * @property {TurnDelivery} [delivery]
+     */
+
     const TURN_CONTRACT = {
         tracking: {
             persona: "echo the operator's persona from LIVE STATE — never change it",
@@ -695,6 +771,7 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
      * not police prose quality or require optional blocks — a turn with no
      * imageDirective is a text turn, not a broken one.
      *
+     * @param {TurnReply|null|undefined} parsed
      * @returns {{ok: boolean, problems: string[]}} problems are phrased for the
      *          model: they are pasted into the retry so it knows what to fix.
      */
@@ -743,7 +820,11 @@ Return ONLY valid JSON matching the EDF schema. No markdown fences. No commentar
         return { ok: problems.length === 0, problems };
     }
 
-    /** The note a retry carries so the model is told what to fix, not just "again". */
+    /**
+     * The note a retry carries so the model is told what to fix, not just "again".
+     * @param {string[]} problems
+     * @returns {string}
+     */
     function contractRetryNote(problems) {
         return 'CLIENT NOTE: Your last reply parsed as JSON but did not follow the contract:\n'
             + problems.map(p => `- ${p}`).join('\n')
@@ -2880,6 +2961,7 @@ protocol selection. Stay brief and practical.
         return (pools[band] || pools.afternoon).filter(s => placeFamily(s) !== family).slice(0, 5);
     }
 
+    /** @param {string} prevEnv @param {{hour?: number}} [opts] */
     function formatPlaceCutNote(prevEnv, { hour } = {}) {
         const prev = String(prevEnv || '').trim();
         if (!prev) return '';
@@ -3526,9 +3608,24 @@ FACE RECOVERY MODE (active — overrides variance):
     // ───────────────────────── public builders ─────────────────────────
 
     /**
+     * Options both image builders take.
+     *
+     * `soft` was missing from both signatures until the type check asked for it,
+     * while `simulation.js` had been passing it all along — it is what turns on
+     * PROVIDER_SOFTENING_NOTE and rewrites the expression wording for a
+     * safety-filter retry. A load-bearing option that the documented signature
+     * denied existed is exactly the drift this check is here to find.
+     *
+     * @typedef {object} ImageBuildOptions
+     * @property {string[]} [references]
+     * @property {boolean} [faceRecovery]
+     * @property {boolean} [soft] Retry pass — milder wording for provider filters.
+     */
+
+    /**
      * System instruction for THINKING model calls.
      * @param {'setup'|'forensic'|'turn'|'command'} task
-     * @param {object} runtimeContext
+     * @param {Record<string, any>} runtimeContext
      */
     function buildThinkingSystemInstruction(task, runtimeContext) {
         const isPlay = task === 'turn' || task === 'command';
@@ -3653,9 +3750,9 @@ FACE RECOVERY MODE (active — overrides variance):
     /**
      * System instruction for IMAGE model calls. Deliberately excludes the narrative
      * core, the dossier, persona prose, chat history and metric semantics.
-     * @param {object} runtimeContext
-     * @param {object} imageDirective from the thinking model
-     * @param {{references?: string[], faceRecovery?: boolean}} [options]
+     * @param {Record<string, any>} runtimeContext
+     * @param {TurnImageDirective} imageDirective from the thinking model
+     * @param {ImageBuildOptions} [options]
      */
     function buildImageSystemInstruction(runtimeContext, imageDirective, options = {}) {
         const recovery = isFaceRecovery(imageDirective, options);
@@ -3677,7 +3774,9 @@ FACE RECOVERY MODE (active — overrides variance):
     /**
      * The image model's user-facing prompt: one photograph, described photographically.
      * Always candid iPhone format — Face Recovery never switches to studio.
-     * @param {{references?: string[], faceRecovery?: boolean}} [options]
+     * @param {Record<string, any>} runtimeContext
+     * @param {TurnImageDirective} imageDirective
+     * @param {ImageBuildOptions} [options]
      */
     function buildImagePrompt(runtimeContext, imageDirective, options = {}) {
         const recovery = isFaceRecovery(imageDirective, options);

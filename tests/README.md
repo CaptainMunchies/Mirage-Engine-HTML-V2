@@ -65,7 +65,7 @@ Layer 3 test does not fail the run.
 What a healthy run ends with:
 
 ```
-TOTAL: 65 passed, 1 known-red  (66 total)
+TOTAL: 66 passed, 1 known-red  (67 total)
 ```
 
 ### One definition, two runners
