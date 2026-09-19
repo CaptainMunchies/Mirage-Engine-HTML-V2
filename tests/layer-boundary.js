@@ -32,6 +32,7 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const BEHIND_THE_WALL = [
     'js/chat-view.js',
     'js/setup-view.js',
+    'js/hud-view.js',
     'js/errors.js'
 ];
 

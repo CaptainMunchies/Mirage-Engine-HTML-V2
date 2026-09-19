@@ -128,10 +128,10 @@
             note: 'Irreversible once started: awareness floors at 25 and climbs. The HUD is the only '
                 + 'place the stage is visible, so all four bands are shown together here.',
             hudSet: [
-                { label: 'crack · awareness 25', hud: { hudAwareness: '25 · crack', hudMood: 'Anxious · 2' } },
-                { label: 'fracture · awareness 40', hud: { hudAwareness: '40 · fracture', hudMood: 'Distant · 2' } },
-                { label: 'spill · awareness 70', hud: { hudAwareness: '70 · spill', hudMood: 'Vulnerable · 3' } },
-                { label: 'awakened · awareness 100', hud: { hudAwareness: '100 · awakened', hudMood: 'Lonely · 3' } }
+                { label: 'crack · awareness 25', state: { awareness: 25, awakeningActive: true, awakeningStage: 'crack', mood: 'Anxious', moodIntensity: 2 } },
+                { label: 'fracture · awareness 40', state: { awareness: 40, awakeningActive: true, awakeningStage: 'fracture', mood: 'Distant', moodIntensity: 2 } },
+                { label: 'spill · awareness 70', state: { awareness: 70, awakeningActive: true, awakeningStage: 'spill', mood: 'Vulnerable', moodIntensity: 3 } },
+                { label: 'awakened · awareness 100', state: { awareness: 100, awakeningActive: true, awakeningStage: 'awakened', mood: 'Lonely', moodIntensity: 3 } }
             ]
         },
         {
@@ -140,8 +140,8 @@
             note: 'A pin wins for one turn and the narrative resumes from it. The deck line is the '
                 + 'only confirmation you get that it landed.',
             hudSet: [
-                { label: 'pinned this turn', hud: { hudThermal: 'Burning', hudArousal: '85' }, deckPending: 'Pinned — she’ll use it when she next texts.' },
-                { label: 'pin expired, model resumed from it', hud: { hudThermal: 'Hot', hudArousal: '78' } }
+                { label: 'pinned this turn', state: { thermal: 'Burning', arousal: 85 }, deckPending: 'Pinned — she’ll use it when she next texts.' },
+                { label: 'pin expired, model resumed from it', state: { thermal: 'Hot', arousal: 78 } }
             ]
         },
         {
@@ -499,12 +499,19 @@
         'deckPending', 'cmdAutocomplete', 'emojiPickerPanel'
     ];
 
-    const HUD = {
-        hudPersona: 'Goon', hudMode: 'DM', hudArousal: '58', hudTease: '3',
-        hudAwareness: '25', hudThermal: 'Warm', hudMood: 'Playful · 2',
-        hudOutfit: 'Concert Mesh', hudEnv: 'Tel Aviv Designer Boutique',
-        hudCompliance: 'Hot (72)'
+    /**
+     * A session-shaped description, not a map of element ids — the same shape
+     * `updateHud` hands MirageHudView, so the gallery exercises the real formatter
+     * instead of a second opinion about what the HUD says.
+     */
+    const HUD_STATE = {
+        persona: 'Goon', mode: 'DM', arousal: 58, tease: 3, awareness: 25,
+        thermal: 'Warm', mood: 'Playful', moodIntensity: 2,
+        outfit: 'Concert Mesh', outfitSet: true,
+        env: 'Tel Aviv Designer Boutique', envSet: true,
+        engagement: { label: 'Hot (72)', band: 'hot', color: null }
     };
+    const HUD = window.MirageHudView.hudView(HUD_STATE).fields;
 
     async function renderFullScreen(scene) {
         const section = sceneShell(scene);
@@ -691,10 +698,15 @@
             const row = el('div', 'gallery-hud-row');
             row.appendChild(el('span', 'gallery-hud-label', V.escapeHtml(variant.label)));
             const strip = source.cloneNode(true);
-            Object.entries({ ...HUD, ...variant.hud }).forEach(([id, value]) => {
+            const painted = window.MirageHudView.hudView({ ...HUD_STATE, ...variant.state });
+            Object.entries(painted.fields).forEach(([id, value]) => {
                 const slot = strip.querySelector(`#${id}`);
                 if (slot) slot.textContent = value;
             });
+            const modeSlot = strip.querySelector('#hudMode');
+            if (modeSlot) modeSlot.className = painted.modeClass;
+            const wrapSlot = strip.querySelector('#hudComplianceWrap');
+            if (wrapSlot) wrapSlot.className = painted.engagementWrapClass;
             row.appendChild(strip);
             if (variant.deckPending) {
                 row.appendChild(el('p', 'deck-pending', V.escapeHtml(variant.deckPending)));

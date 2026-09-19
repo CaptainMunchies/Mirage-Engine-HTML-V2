@@ -978,6 +978,61 @@
         },
 
         {
+            name: 'the HUD says what the session says, through the view',
+            group: 'rules',
+            async run(ctx, t) {
+                // Nothing guarded this before the extraction: the Layer 2 baselines
+                // record behaviour and text, and they carry no HUD fields at all — I
+                // checked rather than assumed, having already been wrong about that
+                // once with the chat view's class names.
+                // Reset first, then capture the window: ctx.reset() reboots the
+                // sandbox, so a `ctx.win` grabbed before it points at a torn-down
+                // frame whose localStorage is already null.
+                await freshCharacter(ctx);
+                const W = ctx.win;
+                const H = W.MirageHudView;
+
+                // The formatter itself.
+                const pure = H.hudView({
+                    persona: 'Goon', mode: 'STORY', arousal: 58, tease: 3,
+                    awareness: 70, awakeningActive: true, awakeningStage: 'spill',
+                    thermal: 'Warm', mood: 'Playful', moodIntensity: 2,
+                    outfit: 'Concert Mesh', outfitSet: true,
+                    env: 'Tel Aviv Boutique', envSet: true,
+                    engagement: { label: 'Hot (72)', band: 'hot', color: '#ff0' }
+                });
+                t.equal(pure.fields.hudAwareness, '70 · spill', 'the awakening stage left the HUD');
+                t.equal(pure.fields.hudMood, 'Playful · 2', 'mood lost its intensity');
+                t.equal(pure.fields.hudCompliance, 'Hot (72)', 'the engagement label was not used');
+                t.equal(pure.modeClass, 'hud-mode-story', 'STORY did not change the mode class');
+                t.equal(pure.engagementWrapClass, 'hud-compliance hud-compliance-hot', 'the band class is wrong');
+
+                // An unset scene field prints a dash, not an empty cell — an empty
+                // HUD slot reads as broken rather than as "nothing here".
+                const bare = H.hudView({ outfit: 'ignored', outfitSet: false, persona: null });
+                t.equal(bare.fields.hudOutfit, '—', 'an unset outfit did not fall back to a dash');
+                t.equal(bare.fields.hudPersona, '—', 'a missing persona did not fall back to a dash');
+                t.equal(bare.fields.hudMood, 'Neutral · 1', 'the mood default changed');
+                t.equal(bare.modeClass, 'hud-mode-dm', 'the default mode class changed');
+
+                // …and the wiring, which the formatter alone cannot prove.
+                const S = W.EngineState;
+                Object.assign(S.session, {
+                    persona: 'Goon', arousal: 58, tease: 3, awareness: 70,
+                    awakeningActive: true, awakeningStage: 'spill',
+                    thermal: 'Warm', mood: 'Playful', moodIntensity: 2
+                });
+                W.MirageSimulation.updateHud();
+                const text = (id) => W.document.getElementById(id)?.textContent;
+                t.equal(text('hudArousal'), '58', 'the HUD did not follow the session');
+                t.equal(text('hudAwareness'), '70 · spill', 'the awakening stage did not reach the HUD');
+                t.equal(text('hudMood'), 'Playful · 2', 'mood did not reach the HUD');
+
+                t.noMatch(String(H.hudView), /EngineState|\bS\(\)|document\./, 'the HUD view reaches through the wall');
+            }
+        },
+
+        {
             name: 'the chat view keeps the class names the stylesheet hangs on',
             group: 'rules',
             async run(ctx, t) {

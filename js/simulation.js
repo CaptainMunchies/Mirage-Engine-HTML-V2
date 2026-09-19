@@ -671,45 +671,49 @@
 
     function updateHud() {
         normalizeProfileNameAge();
-        const set = (id, val) => {
+        const sess = S().session;
+        const engValue = Number.isFinite(Number(sess.engagement)) ? Number(sess.engagement) : 55;
+
+        // What the HUD should say is a view; what 72 *means* is the engine's call,
+        // so the engagement trio is resolved here and handed over already decided.
+        const view = MirageHudView.hudView({
+            persona: sess.persona,
+            mode: sess.mode,
+            arousal: sess.arousal,
+            tease: sess.tease,
+            awareness: sess.awareness,
+            awakeningActive: sess.awakeningActive,
+            awakeningStage: sess.awakeningStage,
+            thermal: sess.thermal,
+            mood: sess.mood,
+            moodIntensity: sess.moodIntensity,
+            outfit: sess.outfit,
+            outfitSet: !!S().isSceneFieldSet?.(sess.outfit),
+            env: sess.env,
+            envSet: !!S().isSceneFieldSet?.(sess.env),
+            engagement: {
+                label: MirageLoyaltyUX?.labelOf?.(engValue) || String(engValue),
+                band: MirageLoyaltyUX?.bandOf?.(engValue)?.id || 'warm',
+                color: typeof MirageLoyaltyUX?.engagementHueColor === 'function'
+                    ? MirageLoyaltyUX.engagementHueColor(engValue)
+                    : null
+            }
+        });
+
+        Object.entries(view.fields).forEach(([id, value]) => {
             const el = document.getElementById(id);
-            if (el) el.textContent = val ?? '—';
-        };
-        set('hudPersona', S().session.persona);
-        const mode = S().session.mode || 'DM';
-        set('hudMode', mode);
+            if (el) el.textContent = value;
+        });
+
         const modeEl = document.getElementById('hudMode');
-        if (modeEl) {
-            modeEl.className = mode === 'STORY' ? 'hud-mode-story' : 'hud-mode-dm';
-        }
-        set('hudArousal', S().session.arousal);
-        set('hudTease', S().session.tease);
-        const aw = S().session.awareness;
-        const awLabel = S().session.awakeningActive
-            ? `${aw} · ${S().session.awakeningStage || 'crack'}`
-            : aw;
-        set('hudAwareness', awLabel);
-        set('hudThermal', S().session.thermal);
-        const mood = S().session.mood || 'Neutral';
-        const moodI = Number.isFinite(Number(S().session.moodIntensity))
-            ? Number(S().session.moodIntensity)
-            : 1;
-        set('hudMood', `${mood} · ${moodI}`);
-        set('hudOutfit', S().isSceneFieldSet?.(S().session.outfit) ? S().session.outfit : '—');
-        set('hudEnv', S().isSceneFieldSet?.(S().session.env) ? S().session.env : '—');
-        const eng = Number.isFinite(Number(S().session.engagement))
-            ? Number(S().session.engagement)
-            : 55;
-        set('hudCompliance', MirageLoyaltyUX?.labelOf?.(eng) || String(eng));
+        if (modeEl) modeEl.className = view.modeClass;
+
         const hudEngEl = document.getElementById('hudCompliance');
-        if (hudEngEl && typeof MirageLoyaltyUX?.engagementHueColor === 'function') {
-            hudEngEl.style.color = MirageLoyaltyUX.engagementHueColor(eng);
-        }
+        if (hudEngEl && view.engagementColor) hudEngEl.style.color = view.engagementColor;
+
         const wrap = document.getElementById('hudComplianceWrap');
-        if (wrap) {
-            const band = MirageLoyaltyUX?.bandOf?.(eng)?.id || 'warm';
-            wrap.className = `hud-compliance hud-compliance-${band}`;
-        }
+        if (wrap) wrap.className = view.engagementWrapClass;
+
         syncChatLogMode();
         MirageControlDeck?.sync?.();
         syncUserProfileUi();
