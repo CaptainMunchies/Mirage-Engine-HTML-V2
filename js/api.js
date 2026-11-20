@@ -437,6 +437,15 @@
         if (jsonMode) {
             body.generationConfig = { responseMimeType: 'application/json' };
         }
+        const thinkingLevel = typeof global.MirageModels?.resolveEffort === 'function'
+            ? global.MirageModels.resolveEffort(model, 'google', global.EngineState?.thinkingEffort)
+            : '';
+        if (thinkingLevel) {
+            body.generationConfig = {
+                ...(body.generationConfig || {}),
+                thinkingConfig: { thinkingLevel }
+            };
+        }
 
         const url = `${BASE}/models/${encodeURIComponent(model)}:generateContent`;
         try {

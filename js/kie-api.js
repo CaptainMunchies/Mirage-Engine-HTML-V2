@@ -279,6 +279,12 @@
         return extractOpenAIChatText(data);
     }
 
+    /** Thinking effort for this kie model — Settings override, else registry default. */
+    function effortFor(meta) {
+        if (typeof MirageModels.resolveEffort !== 'function') return meta.reasoningEffort || '';
+        return MirageModels.resolveEffort(meta, 'kie', global.EngineState?.thinkingEffort);
+    }
+
     async function thinkingViaOpenAIChat({ apiKey, meta, systemInstruction, userParts, jsonMode, signal }) {
         const messages = [];
         if (systemInstruction) {
@@ -301,6 +307,10 @@
                 stream: false,
                 include_thoughts: false
             };
+            const effort = effortFor(meta);
+            if (effort) {
+                body.reasoning_effort = effort;
+            }
             if (useJsonFormat) {
                 body.response_format = { type: 'json_object' };
             }
@@ -373,8 +383,9 @@
             stream: false,
             input
         };
-        if (meta.reasoningEffort) {
-            body.reasoning = { effort: meta.reasoningEffort };
+        const effort = effortFor(meta);
+        if (effort) {
+            body.reasoning = { effort };
         }
         // Prefer plain JSON object mode when available; Mirage already asks for JSON in the prompt.
         if (jsonMode) {
@@ -475,6 +486,7 @@
         hasRefs = false,
         maxLen = 9500,
         mentionRefs = false,
+        mentionPrefix = '@image',
         referenceRoles = null,
         liteLock = false
     } = {}) {
@@ -496,7 +508,7 @@
             if (mentionRefs) {
                 if (roles?.length) {
                     roles.forEach((role, i) => {
-                        const tag = `@image${i + 1}`;
+                        const tag = `${mentionPrefix}${i + 1}`;
                         if (role === 'FACE') bits.push(`${tag} is the identity / face reference — copy these features exactly. Do not beautify or substitute a lookalike.`);
                         else if (role === 'BODY') bits.push(`${tag} is body proportions only — ignore its face and outfit.`);
                         else if (role === 'SCENE') {
@@ -507,7 +519,7 @@
                         } else if (role === 'OUTFIT') bits.push(`${tag} is wardrobe only — ignore its face and body.`);
                     });
                 } else {
-                    bits.push('@image1 is the identity / face reference.');
+                    bits.push(`${mentionPrefix}1 is the identity / face reference.`);
                 }
             } else if (roles?.includes('SCENE')) {
                 bits.push(
@@ -572,6 +584,18 @@
             input.aspect_ratio = ratio;
             input.quality = res === '2K' ? 'high' : 'basic';
             input.output_format = 'png';
+            if (hasRefs) input.image_urls = refs;
+        } else if (family === 'seedream-5-5') {
+            input.aspect_ratio = ratio;
+            input.size = res;
+            input.output_format = 'png';
+            if (hasRefs) input.image_urls = refs;
+        } else if (family === 'kling-image') {
+            // Kling Image 4.0: one model for t2i/i2i; lowest tier is 2k.
+            input.aspect_ratio = ratio;
+            input.resolution = '2k';
+            input.mode = 'default';
+            input.count = 1;
             if (hasRefs) input.image_urls = refs;
         } else if (family === 'wan') {
             input.aspect_ratio = ratio;
@@ -808,7 +832,14 @@
             hasRefs: imageUrls.length > 0,
             maxLen: maxPrompt,
             mentionRefs: !!meta.mentionRefsInPrompt,
-            referenceRoles,
+            mentionPrefix: meta.refMentionPrefix || '@image',
+            // Never mention more refs than are actually sent (Kling rejects unknown @image_N).
+            referenceRoles: Array.isArray(referenceRoles)
+                ? referenceRoles.slice(0, Math.min(
+                    imageUrls.length,
+                    Number.isFinite(meta.maxCharacterRefs) ? meta.maxCharacterRefs : imageUrls.length
+                ))
+                : referenceRoles,
             liteLock: meta.family === 'nano-lite'
         });
         if (!prompt.trim()) {
