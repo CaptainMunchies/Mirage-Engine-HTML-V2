@@ -108,12 +108,15 @@ Most Gemini 3 models use `POST /v1beta/models/{id}:generateContent` (browser-saf
 
 Legacy 2.5 models use `generateContent` as fallback.
 
+Gemini 4 Hydrogen (`gemini-4-hydrogen`) and Gemini 4 Neon (`gemini-4-neon`) send a `thinkingLevel` (low / medium) so chat turns don't default to `high`. On kie.ai, DeepSeek 4.1 Flash and Kimi K3.1 Pro run on the `/openai/v1/responses` endpoint; kie image models include Nano Banana 2.1, Seedream 5.5 and Kling Image 4.0.
+
 ### Image models (Nano Banana)
 
 Uses `POST /v1beta/interactions` via **local proxy** (`mirage_server.py`) for CORS.
 
 | Product | API Model ID |
 |---------|----------------|
+| Nano Banana 2.1 | `gemini-nano-banana-2.1` |
 | Nano Banana Pro ★ | `gemini-3-pro-image` |
 | Nano Banana 2 | `gemini-3.1-flash-image` |
 | Nano Banana 2 Lite | `gemini-3.1-flash-lite-image` |

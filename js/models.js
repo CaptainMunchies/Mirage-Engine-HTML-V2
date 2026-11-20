@@ -10,13 +10,16 @@
         { id: 'kie', label: 'kie.ai (cheaper)' }
     ];
 
-    const VENDOR_ORDER = ['google', 'openai', 'xai', 'qwen', 'bytedance', 'wan', 'flux', 'other'];
+    const VENDOR_ORDER = ['google', 'openai', 'xai', 'deepseek', 'moonshot', 'qwen', 'bytedance', 'kling', 'wan', 'flux', 'other'];
     const VENDOR_LABELS = {
         google: 'Google',
         openai: 'OpenAI',
         xai: 'xAI · Grok',
+        deepseek: 'DeepSeek',
+        moonshot: 'Moonshot · Kimi',
         qwen: 'Qwen',
         bytedance: 'ByteDance',
+        kling: 'Kling',
         wan: 'Wan',
         flux: 'Flux',
         other: 'Other'
@@ -24,6 +27,71 @@
 
     /** Verified thinking models — Google generateContent */
     const GOOGLE_THINKING_MODELS = [
+        {
+            id: 'gemini-4-neon',
+            label: 'Gemini 4 Neon',
+            vendor: 'google',
+            tag: 'new',
+            thinkingLevel: 'medium',
+            costRank: 6,
+            costLabel: '$$$$$',
+            dropdownHint: 'deep reasoning',
+            bestFor: 'Hardest scene logic + long-memory beats',
+            capability: 'Gemini 4 between Hydrogen and Carbon. 1M context, strongest JSON / instruction following here.',
+            caution: 'Not on the free tier. Most expensive Google option. Gemini safety can mute explicit / Goon beats.',
+            costNote: '$3.00 in / $15.00 out per 1M tokens (Google list). Runs at medium thinking.',
+            pricing: {
+                headline: '$3.00 in / $15.00 out per 1M tokens',
+                input: '$3.00',
+                output: '$15.00',
+                inputPer1MUsd: 3.00,
+                outputPer1MUsd: 15.00,
+                note: 'Google list. Thinking tokens bill as output. Mirage sends thinkingLevel medium (default is high).'
+            }
+        },
+        {
+            id: 'gemini-4-hydrogen',
+            label: 'Gemini 4 Hydrogen',
+            vendor: 'google',
+            tag: 'new',
+            thinkingLevel: 'low',
+            costRank: 5,
+            costLabel: '$$$',
+            dropdownHint: 'fast Gemini 4',
+            bestFor: 'Gemini 4 quality at chat speed',
+            capability: 'Fast Gemini 4 (successor to 3.8 Flash). 1M context, strong JSON and persona.',
+            caution: 'Gemini safety can mute explicit / Goon beats. Pricier than the Flash line.',
+            costNote: '$1.50 in / $7.50 out per 1M tokens (Google list). Runs at low thinking.',
+            pricing: {
+                headline: '$1.50 in / $7.50 out per 1M tokens',
+                input: '$1.50',
+                output: '$7.50',
+                inputPer1MUsd: 1.50,
+                outputPer1MUsd: 7.50,
+                note: 'Google list. Thinking tokens bill as output. Mirage sends thinkingLevel low (default is high).'
+            }
+        },
+        {
+            id: 'gemini-3.8-flash',
+            label: 'Gemini 3.8 Flash',
+            vendor: 'google',
+            tag: 'new',
+            costRank: 2,
+            costLabel: '$$',
+            dropdownHint: 'newest Flash',
+            bestFor: 'Scene commands + heavier JSON',
+            capability: 'Newest Gemini Flash. Beats 3.7 on reasoning; may think a little longer.',
+            caution: 'Gemini safety can mute explicit / Goon beats.',
+            costNote: '$0.75 in / $3.75 out per 1M tokens (intro through Dec 31, 2026). Then $1.50 / $7.50.',
+            pricing: {
+                headline: '$0.75 in / $3.75 out per 1M tokens',
+                input: '$0.75',
+                output: '$3.75',
+                inputPer1MUsd: 0.75,
+                outputPer1MUsd: 3.75,
+                note: 'Google intro through Dec 31, 2026. Standard from Jan 1, 2027: $1.50 / $7.50.'
+            }
+        },
         {
             id: 'gemini-3.7-flash',
             label: 'Gemini 3.7 Flash',
@@ -118,6 +186,83 @@
      * ~6k input + ~500 output tokens (typical Mirage thinking call).
      */
     const KIE_THINKING_MODELS = [
+        {
+            id: 'gemini-4-neon',
+            label: 'Gemini 4 Neon',
+            vendor: 'google',
+            tag: 'new',
+            apiStyle: 'openai-chat',
+            chatPath: '/gemini-4-neon-openai/v1/chat/completions',
+            kieModel: 'gemini-4-neon',
+            reasoningEffort: 'medium',
+            costRank: 6,
+            costLabel: '$$$$$',
+            dropdownHint: 'deep reasoning',
+            bestFor: 'Hardest scene logic + long-memory beats',
+            capability: 'Gemini 4 between Hydrogen and Carbon. 1M context, strongest Gemini JSON / instruction following.',
+            caution: 'Gemini safety can mute explicit / Goon beats — switch Thinking + Scene to Grok.',
+            costNote: '240 / 1200 credits per 1M in/out ($1.20 / $6.00). Official Google $3.00 / $15.00.',
+            pricing: {
+                headline: '240 cr in / 1200 cr out per 1M tokens ($1.20 / $6.00)',
+                input: '240 credits ($1.20)',
+                output: '1200 credits ($6.00)',
+                inputPer1MCredits: 240,
+                outputPer1MCredits: 1200,
+                official: '$3.00 / $15.00 per 1M (Google list)',
+                note: 'kie.ai Market. 1 credit ≈ $0.005. Mirage sends reasoning_effort medium (default is high).'
+            }
+        },
+        {
+            id: 'gemini-4-hydrogen',
+            label: 'Gemini 4 Hydrogen',
+            vendor: 'google',
+            tag: 'new',
+            apiStyle: 'openai-chat',
+            chatPath: '/gemini-4-hydrogen-openai/v1/chat/completions',
+            kieModel: 'gemini-4-hydrogen',
+            reasoningEffort: 'low',
+            costRank: 5,
+            costLabel: '$$$',
+            dropdownHint: 'fast Gemini 4',
+            bestFor: 'Gemini 4 quality at chat speed',
+            capability: 'Fast Gemini 4 (successor to 3.8 Flash). 1M context, strong JSON and persona.',
+            caution: 'Gemini safety can mute explicit / Goon beats — switch Thinking + Scene to Grok.',
+            costNote: '120 / 600 credits per 1M in/out ($0.60 / $3.00). Official Google $1.50 / $7.50.',
+            pricing: {
+                headline: '120 cr in / 600 cr out per 1M tokens ($0.60 / $3.00)',
+                input: '120 credits ($0.60)',
+                output: '600 credits ($3.00)',
+                inputPer1MCredits: 120,
+                outputPer1MCredits: 600,
+                official: '$1.50 / $7.50 per 1M (Google list)',
+                note: 'kie.ai Market. 1 credit ≈ $0.005. Mirage sends reasoning_effort low (default is high).'
+            }
+        },
+        {
+            id: 'gemini-3.8-flash',
+            label: 'Gemini 3.8 Flash',
+            vendor: 'google',
+            tag: 'new',
+            apiStyle: 'openai-chat',
+            chatPath: '/gemini-3-8-flash-openai/v1/chat/completions',
+            kieModel: 'gemini-3-8-flash',
+            costRank: 2,
+            costLabel: '$$',
+            dropdownHint: 'newest Flash',
+            bestFor: 'Scene commands + heavier JSON',
+            capability: 'Newest Gemini Flash on kie. Beats 3.7 on reasoning at the same price.',
+            caution: 'Gemini safety can mute explicit / Goon beats — switch Thinking + Scene to Grok.',
+            costNote: '45 / 225 credits per 1M in/out ($0.225 / $1.125). Official Google intro $0.75 / $3.75.',
+            pricing: {
+                headline: '45 cr in / 225 cr out per 1M tokens ($0.225 / $1.125)',
+                input: '45 credits ($0.225)',
+                output: '225 credits ($1.125)',
+                inputPer1MCredits: 45,
+                outputPer1MCredits: 225,
+                official: '$0.75 / $3.75 per 1M (Google intro through Dec 31, 2026)',
+                note: 'kie.ai Market. 1 credit ≈ $0.005. kie lists this as a limited-time 50% off through Dec 31, 2026.'
+            }
+        },
         {
             id: 'gemini-3.7-flash',
             label: 'Gemini 3.7 Flash',
@@ -330,11 +475,82 @@
                 outputPer1MUsd: 6.00,
                 note: 'xAI list (same headline as 4.5). Cached input $0.50 / 1M. Turn estimate uses xAI list (kie is usually less).'
             }
+        },
+        {
+            id: 'deepseek-v4-1-flash',
+            label: 'DeepSeek 4.1 Flash',
+            vendor: 'deepseek',
+            tag: 'new',
+            apiStyle: 'responses',
+            chatPath: '/openai/v1/responses',
+            kieModel: 'deepseek-v4-1-flash',
+            reasoningEffort: 'low',
+            costRank: 1,
+            costLabel: '$',
+            dropdownHint: 'cheap alt',
+            bestFor: 'Cheapest non-Gemini thinking',
+            capability: 'DeepSeek V4.1 Flash (552B MoE, reads images). Fast, very cheap, 1M context.',
+            caution: 'JSON on /next scene is less proven than Gemini Flash. Keep Scene model on a Gemini Flash.',
+            costNote: '24 / 95 credits per 1M in/out ($0.12 / $0.475).',
+            pricing: {
+                headline: '24 cr in / 95 cr out per 1M tokens ($0.12 / $0.475)',
+                input: '24 credits ($0.12)',
+                output: '95 credits ($0.475)',
+                inputPer1MCredits: 24,
+                outputPer1MCredits: 95,
+                note: 'kie.ai Market (OpenAI Responses endpoint). Cached input 0.5 cr / 1M. Mirage sends reasoning effort low.'
+            }
+        },
+        {
+            id: 'kimi-k3-1-pro',
+            label: 'Kimi K3.1 Pro',
+            vendor: 'moonshot',
+            tag: 'new',
+            apiStyle: 'responses',
+            chatPath: '/openai/v1/responses',
+            kieModel: 'kimi-k3-1-pro',
+            reasoningEffort: 'low',
+            costRank: 5,
+            costLabel: '$$$$',
+            dropdownHint: 'heavier',
+            bestFor: 'Non-Gemini reasoning with long memory',
+            capability: 'Moonshot flagship (post-trained from K3). 1M context, image input, always reasons.',
+            caution: 'Reasoning is always on, so turns are slower. Pricier than Gemini Flash.',
+            costNote: '160 / 800 credits per 1M in/out ($0.80 / $4.00).',
+            pricing: {
+                headline: '160 cr in / 800 cr out per 1M tokens ($0.80 / $4.00)',
+                input: '160 credits ($0.80)',
+                output: '800 credits ($4.00)',
+                inputPer1MCredits: 160,
+                outputPer1MCredits: 800,
+                note: 'kie.ai Market (OpenAI Responses endpoint). Cached input 16 cr / 1M. Mirage sends reasoning effort low.'
+            }
         }
     ];
 
     /** Nano Banana — Google Interactions API */
     const GOOGLE_IMAGE_MODELS = [
+        {
+            id: 'gemini-nano-banana-2.1',
+            label: 'Nano Banana 2.1',
+            vendor: 'google',
+            product: 'Gemini Nano Banana 2.1',
+            tag: 'new',
+            maxImageSize: '2K',
+            supportsMultiReference: true,
+            maxCharacterRefs: 5,
+            costRank: 1,
+            costLabel: '$',
+            bestFor: 'Better identity lock at Lite-level cost',
+            capability: 'Update to Nano Banana 2. Better character consistency and realism, 2K output, up to 5 character refs.',
+            caution: 'Gemini image safety can refuse explicit beats.',
+            pricing: {
+                headline: '$0.034 per 1K · $0.050 per 2K · $0.113 per 4K',
+                perImage: '1K $0.034 · 2K $0.050 · 4K $0.113',
+                perImageUsd: 0.034,
+                note: 'Google list (image output $30 / 1M tokens). 1K typical for Mirage stills.'
+            }
+        },
         {
             id: 'gemini-3-pro-image',
             label: 'Nano Banana Pro',
@@ -407,6 +623,30 @@
      * costRank for 1K i2i-ish: 1 = cheapest
      */
     const KIE_IMAGE_MODELS = [
+        {
+            id: 'nano-banana-2-1',
+            label: 'Nano Banana 2.1',
+            vendor: 'google',
+            product: 'Gemini Nano Banana 2.1 via kie',
+            tag: 'new',
+            family: 'nano',
+            maxImageSize: '2K',
+            supportsMultiReference: true,
+            maxCharacterRefs: 5,
+            maxPrompt: 18000,
+            refField: 'image_input',
+            aspectField: 'aspect_ratio',
+            costRank: 1,
+            costLabel: '$',
+            bestFor: 'Better identity lock at Lite-level cost',
+            pricing: {
+                headline: '$0.02 per 1K · $0.03 per 2K · $0.045 per 4K',
+                perImage: '1K 4 cr ($0.02) · 2K 6 cr ($0.03) · 4K 9 cr ($0.045)',
+                perImageUsd: 0.02,
+                official: 'Google 1K $0.034 · 2K $0.050 · 4K $0.113',
+                note: 'kie.ai Market (Nov 2026). Update to Nano Banana 2 with better character consistency.'
+            }
+        },
         {
             id: 'nano-banana-pro',
             label: 'Nano Banana Pro',
@@ -553,6 +793,32 @@
             }
         },
         {
+            id: 'seedream-5-5',
+            label: 'Seedream 5.5',
+            vendor: 'bytedance',
+            product: 'Seedream 5.5 text/image-to-image',
+            tag: 'new',
+            family: 'seedream-5-5',
+            maxImageSize: '2K',
+            supportsMultiReference: true,
+            maxCharacterRefs: 10,
+            maxPrompt: 5000,
+            refField: 'image_urls',
+            aspectField: 'aspect_ratio',
+            i2iModel: 'seedream/5-5-image-to-image',
+            t2iModel: 'seedream/5-5-text-to-image',
+            aspectAllow: ['1:1', '4:3', '3:4', '16:9', '9:16', '2:3', '3:2', '21:9'],
+            costRank: 2,
+            costLabel: '$',
+            bestFor: 'Cheap realistic stills + consistent edits',
+            pricing: {
+                headline: '3.6 cr per 1K · 6.3 cr per 2K (+ each ref image)',
+                perImageCreditsMin: 3.6,
+                perImageCreditsMax: 8,
+                note: 'ByteDance Seedream 5.5 via kie (Nov 2026). Each input reference is billed on top of the output image.'
+            }
+        },
+        {
             id: 'seedream-5-pro',
             label: 'Seedream 5.0 Pro',
             vendor: 'bytedance',
@@ -602,6 +868,35 @@
                 perImageCreditsMin: 6,
                 perImageCreditsMax: 12,
                 note: 'ByteDance Seedream 5 Lite via kie. Unfiltered. Live rate: kie.ai/pricing.'
+            }
+        },
+        {
+            id: 'kling-image-4',
+            label: 'Kling Image 4.0',
+            vendor: 'kling',
+            product: 'Kling Image 4.0 text/image-to-image',
+            tag: 'new',
+            family: 'kling-image',
+            maxImageSize: '2K',
+            supportsMultiReference: true,
+            maxCharacterRefs: 5,
+            maxPrompt: 18000,
+            refField: 'image_urls',
+            aspectField: 'aspect_ratio',
+            i2iModel: 'kling-4-0/image',
+            t2iModel: 'kling-4-0/image',
+            mentionRefsInPrompt: true,
+            refMentionPrefix: '@image_',
+            aspectAllow: ['9:16', '2:3', '3:4', '1:1', '4:3', '3:2', '16:9', '21:9'],
+            costRank: 5,
+            costLabel: '$$',
+            bestFor: 'Camera-like realism, native 2K minimum',
+            caution: 'Always renders at 2K (no 1K tier). Reference photos must be JPG or PNG.',
+            pricing: {
+                headline: '11.3 cr per 2K image (+0.5 cr per ref)',
+                perImageCreditsMin: 11.3,
+                perImageCreditsMax: 14,
+                note: 'Kling Image 4.0 via kie (Nov 2026). 4K 17 cr · 8K 28.3 cr; Mirage requests 2K.'
             }
         },
         {
@@ -743,6 +1038,11 @@
         'qwen3/pro-text-to-image': 'qwen3-image-pro',
         'gpt-image-2-image-to-image': 'gpt-image-2',
         'gpt-image-2-text-to-image': 'gpt-image-2',
+        'gemini-nano-banana-2.1': 'gemini-nano-banana-2.1',
+        'nano-banana-2-1': 'gemini-nano-banana-2.1',
+        'seedream/5-5-image-to-image': 'seedream-5-5',
+        'seedream/5-5-text-to-image': 'seedream-5-5',
+        'kling-4-0/image': 'kling-image-4',
         'seedream/5-pro-image-to-image': 'seedream-5-pro',
         'seedream/5-pro-text-to-image': 'seedream-5-pro',
         'seedream/5-lite-image-to-image': 'seedream-5-lite',
@@ -755,11 +1055,15 @@
     };
 
     const GOOGLE_TO_KIE_IMAGE = {
+        'gemini-nano-banana-2.1': 'nano-banana-2-1',
         'gemini-3-pro-image': 'nano-banana-pro',
         'gemini-3.1-flash-image': 'nano-banana-2',
         'gemini-3.1-flash-lite-image': 'nano-banana-2-lite'
     };
     const KIE_TO_GOOGLE_IMAGE = {
+        'nano-banana-2-1': 'gemini-nano-banana-2.1',
+        'seedream-5-5': 'gemini-nano-banana-2.1',
+        'kling-image-4': 'gemini-nano-banana-2.1',
         'nano-banana-pro': 'gemini-3-pro-image',
         'nano-banana-2': 'gemini-3.1-flash-image',
         'nano-banana-2-lite': 'gemini-3.1-flash-lite-image',
@@ -775,12 +1079,20 @@
         'flux-kontext': 'gemini-3.1-flash-image'
     };
     const GOOGLE_TO_KIE_THINKING = {
+        'gemini-4-neon': 'gemini-4-neon',
+        'gemini-4-hydrogen': 'gemini-4-hydrogen',
+        'gemini-3.8-flash': 'gemini-3.8-flash',
         'gemini-3.7-flash': 'gemini-3.7-flash',
         'gemini-3.6-flash': 'gemini-3.6-flash',
         'gemini-3.5-flash': 'gemini-3.5-flash',
         'gemini-3.5-flash-lite': 'gemini-3.5-flash-lite'
     };
     const KIE_TO_GOOGLE_THINKING = {
+        'gemini-4-neon': 'gemini-4-neon',
+        'gemini-4-hydrogen': 'gemini-4-hydrogen',
+        'gemini-3.8-flash': 'gemini-3.8-flash',
+        'deepseek-v4-1-flash': 'gemini-3.5-flash',
+        'kimi-k3-1-pro': 'gemini-3.8-flash',
         'gemini-3.7-flash': 'gemini-3.7-flash',
         'gemini-3.6-flash': 'gemini-3.7-flash',
         'gemini-3.5-flash': 'gemini-3.5-flash',

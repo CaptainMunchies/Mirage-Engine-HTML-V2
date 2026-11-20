@@ -353,6 +353,13 @@
         if (jsonMode) {
             body.generationConfig = { responseMimeType: 'application/json' };
         }
+        const thinkingLevel = global.MirageModels?.getThinkingModel?.(model, 'google')?.thinkingLevel;
+        if (thinkingLevel) {
+            body.generationConfig = {
+                ...(body.generationConfig || {}),
+                thinkingConfig: { thinkingLevel }
+            };
+        }
 
         const url = `${BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
         try {
