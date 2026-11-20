@@ -353,7 +353,9 @@
         if (jsonMode) {
             body.generationConfig = { responseMimeType: 'application/json' };
         }
-        const thinkingLevel = global.MirageModels?.getThinkingModel?.(model, 'google')?.thinkingLevel;
+        const thinkingLevel = typeof global.MirageModels?.resolveEffort === 'function'
+            ? global.MirageModels.resolveEffort(model, 'google', global.EngineState?.thinkingEffort)
+            : '';
         if (thinkingLevel) {
             body.generationConfig = {
                 ...(body.generationConfig || {}),

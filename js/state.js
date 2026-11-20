@@ -256,6 +256,11 @@
          */
         sceneThinkingModel: MirageModels.DEFAULT_SCENE_THINKING,
         imageModel: MirageModels.DEFAULT_IMAGE,
+        /**
+         * Per-model thinking effort overrides, keyed 'provider:modelId'
+         * (e.g. 'kie:gemini-4-neon' → 'high'; 'auto' = send none). Missing = registry default.
+         */
+        thinkingEffort: {},
 
         developerMode: false,
         /** Dev-only: skip Nano Banana; placeholder images from imageDirective. */
@@ -356,6 +361,11 @@
                 } else {
                     this.sceneThinkingModel = MirageModels.defaultSceneThinking?.(this.apiProvider)
                         || MirageModels.DEFAULT_SCENE_THINKING;
+                }
+                if (cfg.thinkingEffort && typeof cfg.thinkingEffort === 'object') {
+                    this.thinkingEffort = typeof MirageModels.sanitizeEffortOverrides === 'function'
+                        ? MirageModels.sanitizeEffortOverrides(cfg.thinkingEffort)
+                        : { ...cfg.thinkingEffort };
                 }
                 if (cfg.imageModel) {
                     this.imageModel = MirageModels.resolveImageModel(
@@ -467,6 +477,9 @@
                 kieApiKey: this.kieApiKey,
                 thinkingModel: this.thinkingModel,
                 sceneThinkingModel: this.sceneThinkingModel,
+                thinkingEffort: this.thinkingEffort && typeof this.thinkingEffort === 'object'
+                    ? this.thinkingEffort
+                    : {},
                 imageModel: this.imageModel,
                 developerMode: this.developerMode,
                 mockImages: !!this.mockImages,

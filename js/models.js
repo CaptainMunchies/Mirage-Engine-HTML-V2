@@ -30,6 +30,7 @@
         {
             id: 'gemini-4-neon',
             label: 'Gemini 4 Neon',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'google',
             tag: 'new',
             thinkingLevel: 'medium',
@@ -52,6 +53,7 @@
         {
             id: 'gemini-4-hydrogen',
             label: 'Gemini 4 Hydrogen',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'google',
             tag: 'new',
             thinkingLevel: 'low',
@@ -74,6 +76,7 @@
         {
             id: 'gemini-3.8-flash',
             label: 'Gemini 3.8 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'new',
             costRank: 2,
@@ -95,6 +98,7 @@
         {
             id: 'gemini-3.7-flash',
             label: 'Gemini 3.7 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             costRank: 2,
@@ -116,6 +120,7 @@
         {
             id: 'gemini-3.6-flash',
             label: 'Gemini 3.6 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             costRank: 3,
@@ -137,6 +142,7 @@
         {
             id: 'gemini-3.5-flash',
             label: 'Gemini 3.5 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             costRank: 2,
@@ -158,6 +164,7 @@
         {
             id: 'gemini-3.5-flash-lite',
             label: 'Gemini 3.5 Flash Lite',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'recommended',
             costRank: 1,
@@ -189,6 +196,7 @@
         {
             id: 'gemini-4-neon',
             label: 'Gemini 4 Neon',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'google',
             tag: 'new',
             apiStyle: 'openai-chat',
@@ -215,6 +223,7 @@
         {
             id: 'gemini-4-hydrogen',
             label: 'Gemini 4 Hydrogen',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'google',
             tag: 'new',
             apiStyle: 'openai-chat',
@@ -241,6 +250,7 @@
         {
             id: 'gemini-3.8-flash',
             label: 'Gemini 3.8 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'new',
             apiStyle: 'openai-chat',
@@ -266,6 +276,7 @@
         {
             id: 'gemini-3.7-flash',
             label: 'Gemini 3.7 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             apiStyle: 'openai-chat',
@@ -291,6 +302,7 @@
         {
             id: 'gemini-3.6-flash',
             label: 'Gemini 3.6 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             apiStyle: 'openai-chat',
@@ -314,6 +326,7 @@
         {
             id: 'gemini-3.5-flash',
             label: 'Gemini 3.5 Flash',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'ga',
             apiStyle: 'openai-chat',
@@ -337,6 +350,7 @@
         {
             id: 'gemini-3.5-flash-lite',
             label: 'Gemini 3.5 Flash Lite',
+            effortLevels: ['low', 'high'],
             vendor: 'google',
             tag: 'recommended',
             apiStyle: 'openai-chat',
@@ -360,6 +374,7 @@
         {
             id: 'gpt-5.6-luna',
             label: 'GPT-5.6 Luna',
+            effortLevels: ['low', 'medium', 'high'],
             vendor: 'openai',
             tag: 'fast',
             apiStyle: 'responses',
@@ -384,6 +399,7 @@
         {
             id: 'gpt-5.6-terra',
             label: 'GPT-5.6 Terra',
+            effortLevels: ['low', 'medium', 'high'],
             vendor: 'openai',
             tag: 'alt',
             apiStyle: 'responses',
@@ -408,6 +424,7 @@
         {
             id: 'grok-4-3',
             label: 'Grok 4.3',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'xai',
             tag: 'alt',
             apiStyle: 'responses',
@@ -432,6 +449,7 @@
         {
             id: 'grok-4-5',
             label: 'Grok 4.5',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'xai',
             tag: 'alt',
             apiStyle: 'responses',
@@ -455,6 +473,7 @@
         {
             id: 'grok-4-6',
             label: 'Grok 4.6',
+            effortLevels: ['low', 'medium', 'high', 'xhigh'],
             vendor: 'xai',
             tag: 'new',
             apiStyle: 'responses',
@@ -479,6 +498,7 @@
         {
             id: 'deepseek-v4-1-flash',
             label: 'DeepSeek 4.1 Flash',
+            effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
             vendor: 'deepseek',
             tag: 'new',
             apiStyle: 'responses',
@@ -504,6 +524,7 @@
         {
             id: 'kimi-k3-1-pro',
             label: 'Kimi K3.1 Pro',
+            effortLevels: ['low', 'high', 'max'],
             vendor: 'moonshot',
             tag: 'new',
             apiStyle: 'responses',
@@ -1233,6 +1254,98 @@
         return /^grok-4-\d/.test(id);
     }
 
+    const EFFORT_LABELS = {
+        minimal: 'Minimal',
+        low: 'Low',
+        medium: 'Medium',
+        high: 'High',
+        xhigh: 'Extra high',
+        max: 'Max'
+    };
+
+    /** Sentinel override: send no effort param, let the model pick. */
+    const EFFORT_AUTO = 'auto';
+
+    function thinkingMetaOf(idOrMeta, provider) {
+        return idOrMeta && typeof idOrMeta === 'object'
+            ? idOrMeta
+            : getThinkingModel(idOrMeta, provider);
+    }
+
+    /** Thinking-effort values this model accepts ([] = not configurable). */
+    function effortLevels(idOrMeta, provider = 'google') {
+        const m = thinkingMetaOf(idOrMeta, provider);
+        return Array.isArray(m?.effortLevels) ? m.effortLevels.slice() : [];
+    }
+
+    function supportsEffort(idOrMeta, provider = 'google') {
+        return effortLevels(idOrMeta, provider).length > 0;
+    }
+
+    /** Mirage's built-in effort for this model ('' = none sent, model decides). */
+    function defaultEffort(idOrMeta, provider = 'google') {
+        const m = thinkingMetaOf(idOrMeta, provider);
+        const d = m?.reasoningEffort || m?.thinkingLevel || '';
+        return effortLevels(m, provider).includes(d) ? d : '';
+    }
+
+    function effortKey(modelId, provider = 'google') {
+        return `${normalizeProvider(provider)}:${modelId}`;
+    }
+
+    /**
+     * Effort to send for a thinking call.
+     * overrides = EngineState.thinkingEffort map { 'kie:gemini-4-neon': 'high', … }.
+     * Returns '' when nothing should be sent.
+     */
+    function resolveEffort(idOrMeta, provider = 'google', overrides = null) {
+        const m = thinkingMetaOf(idOrMeta, provider);
+        const levels = effortLevels(m, provider);
+        if (!m || !levels.length) return '';
+        const o = overrides && typeof overrides === 'object' ? overrides[effortKey(m.id, provider)] : '';
+        if (o === EFFORT_AUTO) return '';
+        if (o && levels.includes(o)) return o;
+        return defaultEffort(m, provider);
+    }
+
+    function effortLabel(level) {
+        return EFFORT_LABELS[level] || String(level || '');
+    }
+
+    /** <option> list for the Settings effort select. Value '' = Mirage default. */
+    function effortOptionsHtml(idOrMeta, provider = 'google', selected = '') {
+        const m = thinkingMetaOf(idOrMeta, provider);
+        const levels = effortLevels(m, provider);
+        if (!levels.length) return '';
+        const d = defaultEffort(m, provider);
+        const opts = [{
+            value: '',
+            label: d ? `Default (${effortLabel(d)})` : 'Default (model decides)'
+        }];
+        if (d) opts.push({ value: EFFORT_AUTO, label: 'Model decides' });
+        levels.forEach(l => opts.push({ value: l, label: effortLabel(l) }));
+        const sel = opts.some(o => o.value === selected) ? selected : '';
+        return opts.map(o => `<option value="${o.value}"${o.value === sel ? ' selected' : ''}>${o.label}</option>`).join('');
+    }
+
+    /** Drop overrides for unknown models / unsupported levels. */
+    function sanitizeEffortOverrides(map) {
+        const out = {};
+        if (!map || typeof map !== 'object') return out;
+        Object.keys(map).forEach((key) => {
+            const val = String(map[key] || '');
+            const idx = key.indexOf(':');
+            if (idx < 0 || !val) return;
+            const prov = key.slice(0, idx);
+            const id = key.slice(idx + 1);
+            if (prov !== 'google' && prov !== 'kie') return;
+            const meta = thinkingModels(prov).find(m => m.id === id);
+            if (!meta) return;
+            if (val === EFFORT_AUTO || effortLevels(meta, prov).includes(val)) out[key] = val;
+        });
+        return out;
+    }
+
     function formatOptionLabel(m) {
         if (!m) return '';
         const bits = [m.label];
@@ -1468,6 +1581,15 @@
         thinkingTurnEstimate,
         imageTurnEstimate,
         isLiteImageFamily,
+        EFFORT_AUTO,
+        effortLevels,
+        supportsEffort,
+        defaultEffort,
+        effortKey,
+        resolveEffort,
+        effortLabel,
+        effortOptionsHtml,
+        sanitizeEffortOverrides,
         VENDOR_LABELS
     };
 })(typeof window !== 'undefined' ? window : globalThis);

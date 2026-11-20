@@ -251,6 +251,12 @@
         return extractOpenAIChatText(data);
     }
 
+    /** Thinking effort for this kie model — Settings override, else registry default. */
+    function effortFor(meta) {
+        if (typeof MirageModels.resolveEffort !== 'function') return meta.reasoningEffort || '';
+        return MirageModels.resolveEffort(meta, 'kie', global.EngineState?.thinkingEffort);
+    }
+
     async function thinkingViaOpenAIChat({ apiKey, meta, systemInstruction, userParts, jsonMode, signal }) {
         const messages = [];
         if (systemInstruction) {
@@ -273,8 +279,9 @@
                 stream: false,
                 include_thoughts: false
             };
-            if (meta.reasoningEffort) {
-                body.reasoning_effort = meta.reasoningEffort;
+            const effort = effortFor(meta);
+            if (effort) {
+                body.reasoning_effort = effort;
             }
             if (useJsonFormat) {
                 body.response_format = { type: 'json_object' };
@@ -348,8 +355,9 @@
             stream: false,
             input
         };
-        if (meta.reasoningEffort) {
-            body.reasoning = { effort: meta.reasoningEffort };
+        const effort = effortFor(meta);
+        if (effort) {
+            body.reasoning = { effort };
         }
         // Prefer plain JSON object mode when available; Mirage already asks for JSON in the prompt.
         if (jsonMode) {

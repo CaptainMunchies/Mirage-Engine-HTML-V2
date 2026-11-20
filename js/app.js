@@ -17,6 +17,7 @@
             apiProvider: S().apiProvider,
             thinkingModel: S().thinkingModel,
             sceneThinkingModel: S().sceneThinkingModel,
+            thinkingEffort: JSON.stringify(S().thinkingEffort || {}),
             imageModel: S().imageModel,
             referenceMode: S().effectiveReferenceMode?.() || S().referenceMode,
             pacing: S().getPacingMode?.() || S().pacingMode,
@@ -104,6 +105,10 @@
         const resetWipeLibraryCheck = document.getElementById('checkResetWipeLibrary');
         const btnUnlockSceneModel = document.getElementById('btnUnlockSceneModel');
         const sceneModelLockHint = document.getElementById('sceneModelLockHint');
+        const thinkingEffortField = document.getElementById('fieldThinkingEffort');
+        const thinkingEffortSelect = document.getElementById('selectThinkingEffort');
+        const sceneEffortField = document.getElementById('fieldSceneThinkingEffort');
+        const sceneEffortSelect = document.getElementById('selectSceneThinkingEffort');
         const btnOpenModelGuide = document.getElementById('btnOpenModelGuide');
         const modelGuideOverlay = document.getElementById('modelGuideOverlay');
         const btnCloseModelGuide = document.getElementById('btnCloseModelGuide');
@@ -124,6 +129,44 @@
             if (sceneModelLockHint) {
                 sceneModelLockHint.hidden = !locked;
             }
+        }
+
+        /** Rebuild the per-model effort selects for the current chat + scene picks. */
+        function syncEffortUi() {
+            const prov = MirageModels.normalizeProvider(providerSelect?.value || S().apiProvider);
+            if (typeof MirageModels.effortOptionsHtml !== 'function') return;
+            const overrides = S().thinkingEffort || {};
+            const fill = (field, select, modelId, hideIfSameAs) => {
+                if (!field || !select) return;
+                const id = modelId ? MirageModels.resolveThinkingModel(modelId, prov) : '';
+                const supported = !!id && MirageModels.supportsEffort(id, prov);
+                const duplicate = hideIfSameAs && id === hideIfSameAs;
+                field.hidden = !supported || duplicate;
+                if (!supported) {
+                    select.innerHTML = '';
+                    delete select.dataset.modelId;
+                    return;
+                }
+                const current = overrides[MirageModels.effortKey(id, prov)] || '';
+                select.innerHTML = MirageModels.effortOptionsHtml(id, prov, current);
+                select.dataset.modelId = id;
+            };
+            const chatId = thinkingSelect?.value || S().thinkingModel;
+            const sceneId = sceneThinkingSelect?.value || S().sceneThinkingModel;
+            fill(thinkingEffortField, thinkingEffortSelect, chatId, null);
+            fill(sceneEffortField, sceneEffortSelect, sceneId,
+                chatId ? MirageModels.resolveThinkingModel(chatId, prov) : null);
+        }
+
+        function applyEffortFromSelect(select) {
+            const id = select?.dataset?.modelId;
+            if (!id) return;
+            const prov = MirageModels.normalizeProvider(providerSelect?.value || S().apiProvider);
+            const key = MirageModels.effortKey(id, prov);
+            const next = { ...(S().thinkingEffort || {}) };
+            if (select.value) next[key] = select.value;
+            else delete next[key];
+            S().thinkingEffort = next;
         }
 
         function syncImageSaveUi() {
@@ -147,6 +190,7 @@
             if (noteGoogle) noteGoogle.hidden = isKie;
             if (noteKie) noteKie.hidden = !isKie;
             populateModelSelects(prov);
+            syncEffortUi();
         }
 
         function syncDeveloperUi() {
@@ -302,7 +346,10 @@
                 S().imageModel = MirageModels.resolveImageModel(imageSelect.value, prov);
             }
             syncSceneThinkingLock();
+            syncEffortUi();
         }
+        thinkingEffortSelect?.addEventListener('change', () => applyEffortFromSelect(thinkingEffortSelect));
+        sceneEffortSelect?.addEventListener('change', () => applyEffortFromSelect(sceneEffortSelect));
         thinkingSelect?.addEventListener('change', applyModelsFromForm);
         sceneThinkingSelect?.addEventListener('change', applyModelsFromForm);
         imageSelect?.addEventListener('change', applyModelsFromForm);
@@ -332,6 +379,14 @@
                 const note = m.costNote || m.costLabel || '';
                 return note ? `<p class="model-guide-price">${esc(note)}</p>` : '';
             };
+            const effortLine = (m) => {
+                if (m.kind !== 'thinking' || typeof MirageModels.effortLevels !== 'function') return '';
+                const levels = MirageModels.effortLevels(m, prov);
+                if (!levels.length) return '';
+                const d = MirageModels.defaultEffort(m, prov);
+                return `<p><strong>Thinking effort:</strong> ${esc(levels.map(MirageModels.effortLabel).join(' · '))}`
+                    + ` (default ${esc(d ? MirageModels.effortLabel(d) : 'model decides')})</p>`;
+            };
             const card = (m) => `
                 <article class="model-guide-card" data-kind="${esc(m.kind || '')}" data-vendor="${esc(m.vendor || '')}">
                     <header>
@@ -345,6 +400,7 @@
                     <p><strong>Best for:</strong> ${esc(m.bestFor || '—')}</p>
                     <p><strong>What it does:</strong> ${esc(m.capability || m.product || '—')}</p>
                     ${m.caution ? `<p><strong>Watch out:</strong> ${esc(m.caution)}</p>` : ''}
+                    ${effortLine(m)}
                     ${priceBlock(m)}
                 </article>`;
             const labSection = (kindLabel, models) => {

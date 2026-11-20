@@ -798,6 +798,10 @@
                         <label for="selectThinkingModel">Thinking — chat turns</label>
                         <select id="selectThinkingModel"></select>
                         <p class="field-hint">Normal replies, delivery, tracking, and image directives. Grouped by lab. $ is relative cost.</p>
+                        <div class="field-effort" id="fieldThinkingEffort" hidden>
+                            <label for="selectThinkingEffort">Thinking effort</label>
+                            <select id="selectThinkingEffort"></select>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="selectImageModel">Image — Nano Banana</label>
@@ -811,6 +815,11 @@
                         </div>
                         <select id="selectSceneThinkingModel" disabled></select>
                         <p class="field-hint" id="sceneModelLockHint">Not recommended to switch. Defaults to Gemini 3.7. Grok chat auto-uses the same Grok here so /jump stays uncensored.</p>
+                        <div class="field-effort" id="fieldSceneThinkingEffort" hidden>
+                            <label for="selectSceneThinkingEffort">Scene thinking effort</label>
+                            <select id="selectSceneThinkingEffort"></select>
+                        </div>
+                        <p class="field-hint">Effort is saved per model. Higher effort = slower turns and more output tokens billed.</p>
                     </div>
                 </section>
 

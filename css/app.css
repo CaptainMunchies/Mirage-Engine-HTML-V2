@@ -126,6 +126,20 @@ body {
     gap: 0.5rem;
 }
 .field-label-row label { margin: 0; }
+.field-effort {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+}
+.field-effort[hidden] { display: none; }
+.field-effort label {
+    margin: 0;
+    flex: 0 0 auto;
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+.field-effort select { flex: 1 1 auto; min-width: 0; }
 select:disabled {
     opacity: 0.55;
     cursor: not-allowed;

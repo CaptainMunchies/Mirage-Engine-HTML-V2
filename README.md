@@ -108,7 +108,7 @@ Most Gemini 3 models use `POST /v1beta/models/{id}:generateContent` (browser-saf
 
 Legacy 2.5 models use `generateContent` as fallback.
 
-Gemini 4 Hydrogen (`gemini-4-hydrogen`) and Gemini 4 Neon (`gemini-4-neon`) send a `thinkingLevel` (low / medium) so chat turns don't default to `high`. On kie.ai, DeepSeek 4.1 Flash and Kimi K3.1 Pro run on the `/openai/v1/responses` endpoint; kie image models include Nano Banana 2.1, Seedream 5.5 and Kling Image 4.0.
+**Thinking effort** is set per model in **Settings → Models** (shown only for models that support it). Google models get `generationConfig.thinkingConfig.thinkingLevel`; kie chat-completions models get `reasoning_effort`; kie Responses models (Grok, GPT, DeepSeek, Kimi) get `reasoning.effort`. "Default" uses Mirage's built-in level (e.g. Gemini 4 Hydrogen low, Neon medium) and "Model decides" sends nothing. On kie.ai, DeepSeek 4.1 Flash and Kimi K3.1 Pro run on the `/openai/v1/responses` endpoint; kie image models include Nano Banana 2.1, Seedream 5.5 and Kling Image 4.0.
 
 ### Image models (Nano Banana)
 
